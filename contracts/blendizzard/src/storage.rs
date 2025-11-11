@@ -6,38 +6,43 @@ use crate::types::{Config, EpochInfo, EpochUser, GameSession, User};
 // Storage Keys
 // ============================================================================
 // Uses type-safe enum keys to prevent storage collisions and improve type safety
+//
+// Storage Types:
+// - Instance: Admin, Config, CurrentEpoch, Paused
+// - Persistent: User, Game
+// - Temporary: EpochUser, Epoch, Session, Claimed
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DataKey {
-    /// Admin address - singleton
+    /// Admin address - singleton (Instance storage)
     Admin,
 
-    /// Global configuration - singleton
+    /// Global configuration - singleton (Instance storage)
     Config,
 
-    /// Current epoch number - singleton
+    /// Current epoch number - singleton (Instance storage)
     CurrentEpoch,
 
-    /// Pause state - singleton
+    /// Pause state - singleton (Instance storage)
     Paused,
 
-    /// User persistent data - User(user_address) -> User
+    /// User persistent data - User(user_address) -> User (Persistent storage)
     User(Address),
 
-    /// User epoch-specific data - EpochUser(epoch_number, user_address) -> EpochUser
+    /// User epoch-specific data - EpochUser(epoch_number, user_address) -> EpochUser (Temporary storage)
     EpochUser(u32, Address),
 
-    /// Epoch metadata - Epoch(epoch_number) -> EpochInfo
+    /// Epoch metadata - Epoch(epoch_number) -> EpochInfo (Temporary storage)
     Epoch(u32),
 
-    /// Game session data - Session(session_id) -> GameSession
+    /// Game session data - Session(session_id) -> GameSession (Temporary storage)
     Session(u32),
 
-    /// Whitelisted game contracts - Game(game_address) -> bool
+    /// Whitelisted game contracts - Game(game_address) -> bool (Persistent storage)
     Game(Address),
 
-    /// Reward claim tracking - Claimed(user_address, epoch_number) -> bool
+    /// Reward claim tracking - Claimed(user_address, epoch_number) -> bool (Temporary storage)
     Claimed(Address, u32),
 }
 
@@ -116,7 +121,7 @@ pub(crate) fn has_user(env: &Env, user: &Address) -> bool {
 /// Get epoch-specific user data
 pub(crate) fn get_epoch_user(env: &Env, epoch: u32, user: &Address) -> Option<EpochUser> {
     let key = DataKey::EpochUser(epoch, user.clone());
-    let result = env.storage().persistent().get(&key);
+    let result = env.storage().temporary().get(&key);
     if result.is_some() {
         extend_epoch_user_ttl(env, epoch, user);
     }
@@ -125,22 +130,24 @@ pub(crate) fn get_epoch_user(env: &Env, epoch: u32, user: &Address) -> Option<Ep
 
 /// Set epoch-specific user data
 pub(crate) fn set_epoch_user(env: &Env, epoch: u32, user: &Address, data: &EpochUser) {
+    let key = DataKey::EpochUser(epoch, user.clone());
     env.storage()
-        .persistent()
-        .set(&DataKey::EpochUser(epoch, user.clone()), data);
+        .temporary()
+        .set(&key, data);
     extend_epoch_user_ttl(env, epoch, user);
 }
 
 /// Check if epoch user exists
 pub(crate) fn has_epoch_user(env: &Env, epoch: u32, user: &Address) -> bool {
     env.storage()
-        .persistent()
+        .temporary()
         .has(&DataKey::EpochUser(epoch, user.clone()))
 }
 
 /// Get epoch metadata
 pub(crate) fn get_epoch(env: &Env, epoch: u32) -> Option<EpochInfo> {
-    let result = env.storage().persistent().get(&DataKey::Epoch(epoch));
+    let key = DataKey::Epoch(epoch);
+    let result = env.storage().temporary().get(&key);
     if result.is_some() {
         extend_epoch_ttl(env, epoch);
     }
@@ -149,22 +156,28 @@ pub(crate) fn get_epoch(env: &Env, epoch: u32) -> Option<EpochInfo> {
 
 /// Set epoch metadata
 pub(crate) fn set_epoch(env: &Env, epoch: u32, data: &EpochInfo) {
-    env.storage().persistent().set(&DataKey::Epoch(epoch), data);
+    let key = DataKey::Epoch(epoch);
+    env.storage().temporary().set(&key, data);
     extend_epoch_ttl(env, epoch);
 }
 
 /// Get game session
 pub(crate) fn get_session(env: &Env, session_id: u32) -> Option<GameSession> {
-    env.storage()
-        .temporary()
-        .get(&DataKey::Session(session_id))
+    let key = DataKey::Session(session_id);
+    let result = env.storage().temporary().get(&key);
+    if result.is_some() {
+        extend_session_ttl(env, session_id);
+    }
+    result
 }
 
 /// Set game session
 pub(crate) fn set_session(env: &Env, session_id: u32, data: &GameSession) {
+    let key = DataKey::Session(session_id);
     env.storage()
         .temporary()
-        .set(&DataKey::Session(session_id), data);
+        .set(&key, data);
+    extend_session_ttl(env, session_id);
 }
 
 /// Check if session exists
@@ -198,17 +211,23 @@ pub(crate) fn remove_game_from_whitelist(env: &Env, game_id: &Address) {
 
 /// Check if user has claimed rewards for an epoch
 pub(crate) fn has_claimed(env: &Env, user: &Address, epoch: u32) -> bool {
-    env.storage()
-        .persistent()
-        .get(&DataKey::Claimed(user.clone(), epoch))
-        .unwrap_or(false)
+    let key = DataKey::Claimed(user.clone(), epoch);
+    let result: Option<bool> = env.storage().temporary().get(&key);
+    if let Some(true) = result {
+        extend_claimed_ttl(env, user, epoch);
+        true
+    } else {
+        false
+    }
 }
 
 /// Mark rewards as claimed for user and epoch
 pub(crate) fn set_claimed(env: &Env, user: &Address, epoch: u32) {
+    let key = DataKey::Claimed(user.clone(), epoch);
     env.storage()
-        .persistent()
-        .set(&DataKey::Claimed(user.clone(), epoch), &true);
+        .temporary()
+        .set(&key, &true);
+    extend_claimed_ttl(env, user, epoch);
 }
 
 // ============================================================================
@@ -216,9 +235,14 @@ pub(crate) fn set_claimed(env: &Env, user: &Address, epoch: u32) {
 // ============================================================================
 // TTL (Time To Live) management ensures data doesn't expire unexpectedly
 // Based on Soroban best practices:
-// - Persistent storage has a default TTL of ~14 days
-// - We extend TTL proactively when data is accessed
-// - Instance storage is tied to contract lifetime
+// - Instance storage: Tied to contract lifetime (Admin, Config, CurrentEpoch, Paused)
+// - Persistent storage: Cross-epoch data (User, Game whitelist) - extends to 30 days when accessed
+// - Temporary storage: Epoch-specific data (EpochUser, Epoch, Claimed, Session) - 30 days from last interaction
+//
+// Storage Type Summary:
+// - Instance: Config-type variables that persist for contract lifetime
+// - Persistent: User data and game whitelist that must survive across epochs
+// - Temporary: Epoch-specific data that expires 30 days after last access
 
 /// TTL thresholds and extensions (in ledgers, ~5 seconds per ledger)
 /// ~30 days = 518,400 ledgers
@@ -236,21 +260,41 @@ pub(crate) fn extend_user_ttl(env: &Env, user: &Address) {
     );
 }
 
-/// Extend TTL for epoch user data
+/// Extend TTL for epoch user data (temporary storage)
 /// Should be called whenever epoch user data is read/written
 pub(crate) fn extend_epoch_user_ttl(env: &Env, epoch: u32, user: &Address) {
-    env.storage().persistent().extend_ttl(
+    env.storage().temporary().extend_ttl(
         &DataKey::EpochUser(epoch, user.clone()),
         TTL_THRESHOLD_LEDGERS,
         TTL_EXTEND_TO_LEDGERS,
     );
 }
 
-/// Extend TTL for epoch data
+/// Extend TTL for epoch data (temporary storage)
 /// Should be called whenever epoch data is read/written
 pub(crate) fn extend_epoch_ttl(env: &Env, epoch: u32) {
-    env.storage().persistent().extend_ttl(
+    env.storage().temporary().extend_ttl(
         &DataKey::Epoch(epoch),
+        TTL_THRESHOLD_LEDGERS,
+        TTL_EXTEND_TO_LEDGERS,
+    );
+}
+
+/// Extend TTL for claimed rewards data (temporary storage)
+/// Should be called whenever claim data is written
+pub(crate) fn extend_claimed_ttl(env: &Env, user: &Address, epoch: u32) {
+    env.storage().temporary().extend_ttl(
+        &DataKey::Claimed(user.clone(), epoch),
+        TTL_THRESHOLD_LEDGERS,
+        TTL_EXTEND_TO_LEDGERS,
+    );
+}
+
+/// Extend TTL for game session data (temporary storage)
+/// Should be called whenever session data is read/written
+pub(crate) fn extend_session_ttl(env: &Env, session_id: u32) {
+    env.storage().temporary().extend_ttl(
+        &DataKey::Session(session_id),
         TTL_THRESHOLD_LEDGERS,
         TTL_EXTEND_TO_LEDGERS,
     );

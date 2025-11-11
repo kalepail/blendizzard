@@ -93,7 +93,7 @@ fn setup_test() -> (Env, NumberGuessContractClient<'static>, MockBlendizzardClie
 
 #[test]
 fn test_complete_game() {
-    let (env, client, _blendizzard, player1, player2) = setup_test();
+    let (_env, client, _blendizzard, player1, player2) = setup_test();
 
     let session_id = 1u32;
     let wager = 100_0000000;
@@ -128,7 +128,7 @@ fn test_complete_game() {
 
 #[test]
 fn test_winning_number_in_range() {
-    let (env, client, _blendizzard, player1, player2) = setup_test();
+    let (_env, client, _blendizzard, player1, player2) = setup_test();
 
     let session_id = 2u32;
     let game_id = client.start_game(&session_id, &player1, &player2, &100_0000000, &100_0000000);
@@ -162,7 +162,7 @@ fn test_game_counter_increments() {
 
 #[test]
 fn test_closest_guess_wins() {
-    let (env, client, _blendizzard, player1, player2) = setup_test();
+    let (_env, client, _blendizzard, player1, player2) = setup_test();
 
     let session_id = 5u32;
     let game_id = client.start_game(&session_id, &player1, &player2, &100_0000000, &100_0000000);
@@ -191,7 +191,7 @@ fn test_closest_guess_wins() {
 
 #[test]
 fn test_tie_game_player1_wins() {
-    let (env, client, _blendizzard, player1, player2) = setup_test();
+    let (_env, client, _blendizzard, player1, player2) = setup_test();
 
     let session_id = 6u32;
     let game_id = client.start_game(&session_id, &player1, &player2, &100_0000000, &100_0000000);
@@ -206,7 +206,7 @@ fn test_tie_game_player1_wins() {
 
 #[test]
 fn test_exact_guess_wins() {
-    let (env, client, _blendizzard, player1, player2) = setup_test();
+    let (_env, client, _blendizzard, player1, player2) = setup_test();
 
     let session_id = 7u32;
     let game_id = client.start_game(&session_id, &player1, &player2, &100_0000000, &100_0000000);
@@ -228,7 +228,7 @@ fn test_exact_guess_wins() {
 
 #[test]
 fn test_cannot_guess_twice() {
-    let (env, client, _blendizzard, player1, player2) = setup_test();
+    let (_env, client, _blendizzard, player1, player2) = setup_test();
 
     let session_id = 8u32;
     let game_id = client.start_game(&session_id, &player1, &player2, &100_0000000, &100_0000000);
@@ -243,7 +243,7 @@ fn test_cannot_guess_twice() {
 
 #[test]
 fn test_cannot_reveal_before_both_guesses() {
-    let (env, client, _blendizzard, player1, player2) = setup_test();
+    let (_env, client, _blendizzard, player1, player2) = setup_test();
 
     let session_id = 9u32;
     let game_id = client.start_game(&session_id, &player1, &player2, &100_0000000, &100_0000000);
@@ -303,7 +303,7 @@ fn test_cannot_reveal_nonexistent_game() {
 
 #[test]
 fn test_cannot_reveal_twice() {
-    let (env, client, _blendizzard, player1, player2) = setup_test();
+    let (_env, client, _blendizzard, player1, player2) = setup_test();
 
     let session_id = 12u32;
     let game_id = client.start_game(&session_id, &player1, &player2, &100_0000000, &100_0000000);
@@ -364,7 +364,7 @@ fn test_multiple_games_independent() {
 
 #[test]
 fn test_asymmetric_wagers() {
-    let (env, client, _blendizzard, player1, player2) = setup_test();
+    let (_env, client, _blendizzard, player1, player2) = setup_test();
 
     let session_id = 15u32;
     let wager1 = 200_0000000;
