@@ -7,9 +7,9 @@
     "bindings/*"
   ],
   "scripts": {
-    "update:bindings": "ncu -u && cd bindings/blendizzard && ncu -u && cd ../fee-vault && ncu -u && cd ../number-guess && ncu -u && cd ../..",
-    "install:bindings": "cd bindings/blendizzard && bun install --force && cd ../fee-vault && bun install --force && cd ../number-guess && bun install --force && cd ../..",
-    "build:bindings": "cd bindings/blendizzard && bun run build && cd ../fee-vault && bun run build && cd ../number-guess && bun run build && cd ../..",
+    "update:bindings": "ncu -u && for dir in bindings/*/; do (cd \"$dir\" && ncu -u); done",
+    "install:bindings": "for dir in bindings/*/; do (cd \"$dir\" && bun install --force); done",
+    "build:bindings": "for dir in bindings/*/; do (cd \"$dir\" && bun run build); done",
     "bindings:all": "bun run update:bindings && bun run install:bindings && bun run build:bindings"
   },
   "dependencies": {

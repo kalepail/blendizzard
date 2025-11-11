@@ -472,11 +472,9 @@ fn test_get_epoch_player_returns_defaults_before_first_game() {
     let player_data = blendizzard.get_player(&player);
     assert_eq!(player_data.selected_faction, 0);
 
-    // Epoch data should return defaults (no faction locked, no FP)
-    let epoch_player = blendizzard.get_epoch_player(&player);
-    assert_eq!(epoch_player.epoch_faction, None);
-    assert_eq!(epoch_player.available_fp, 0);
-    assert_eq!(epoch_player.locked_fp, 0);
+    // Epoch data should error (UserNotFound) because player hasn't played this epoch yet
+    let result = blendizzard.try_get_epoch_player(&player);
+    assert!(result.is_err(), "Should error when player hasn't played in epoch");
 }
 
 #[test]

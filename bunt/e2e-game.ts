@@ -289,34 +289,34 @@ async function main() {
   console.log(`\nSession ID: ${sessionId}`);
   console.log(`Wager: ${formatAmount(wager)} FP (max both players can afford)`);
 
-  await logTx(
-    numberGuess1.start_game({
-      session_id: sessionId,
-      player1: player1.publicKey(),
-      player2: player2.publicKey(),
-      player1_wager: wager,
-      player2_wager: wager,
-    }, DEFAULT_METHOD_OPTIONS),
-    'Start number guess game (locks FP via blendizzard)'
-  );
+  // await logTx(
+  //   numberGuess1.start_game({
+  //     session_id: sessionId,
+  //     player1: player1.publicKey(),
+  //     player2: player2.publicKey(),
+  //     player1_wager: wager,
+  //     player2_wager: wager,
+  //   }, DEFAULT_METHOD_OPTIONS),
+  //   'Start number guess game (locks FP via blendizzard)'
+  // );
 
-  // Check FP state after game start
-  const p1EpochAfter = await queryContract<EpochUser>(
-    blendizzard1.get_epoch_player({ user: player1.publicKey() }, DEFAULT_METHOD_OPTIONS),
-    'Get Player 1 epoch data after game start'
-  );
-  const p2EpochAfter = await queryContract<EpochUser>(
-    blendizzard2.get_epoch_player({ user: player2.publicKey() }, DEFAULT_METHOD_OPTIONS),
-    'Get Player 2 epoch data after game start'
-  );
+  // // Check FP state after game start
+  // const p1EpochAfter = await queryContract<EpochUser>(
+  //   blendizzard1.get_epoch_player({ user: player1.publicKey() }, DEFAULT_METHOD_OPTIONS),
+  //   'Get Player 1 epoch data after game start'
+  // );
+  // const p2EpochAfter = await queryContract<EpochUser>(
+  //   blendizzard2.get_epoch_player({ user: player2.publicKey() }, DEFAULT_METHOD_OPTIONS),
+  //   'Get Player 2 epoch data after game start'
+  // );
 
-  console.log(`\n📊 FP State After Game Start:`);
-  console.log(`   Player 1:`);
-  console.log(`      Available FP: ${formatAmount(BigInt(p1EpochAfter.available_fp))}`);
-  console.log(`      Locked FP: ${formatAmount(BigInt(p1EpochAfter.locked_fp))}`);
-  console.log(`   Player 2:`);
-  console.log(`      Available FP: ${formatAmount(BigInt(p2EpochAfter.available_fp))}`);
-  console.log(`      Locked FP: ${formatAmount(BigInt(p2EpochAfter.locked_fp))}`);
+  // console.log(`\n📊 FP State After Game Start:`);
+  // console.log(`   Player 1:`);
+  // console.log(`      Available FP: ${formatAmount(BigInt(p1EpochAfter.available_fp))}`);
+  // console.log(`      Locked FP: ${formatAmount(BigInt(p1EpochAfter.locked_fp))}`);
+  // console.log(`   Player 2:`);
+  // console.log(`      Available FP: ${formatAmount(BigInt(p2EpochAfter.available_fp))}`);
+  // console.log(`      Locked FP: ${formatAmount(BigInt(p2EpochAfter.locked_fp))}`);
 
   // // ============================================================================
   // // Step 5: Players Make Guesses

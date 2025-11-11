@@ -323,35 +323,16 @@ impl Blendizzard {
         storage::get_user(&env, &user).ok_or(Error::UserNotFound)
     }
 
-    /// Get player's epoch-specific information
+    /// Get player's epoch-specific information for the current epoch
     ///
     /// Returns complete epoch-specific data including locked faction, available/locked FP,
-    /// total FP contributed, and initial balance snapshot.
-    ///
-    /// If the user exists but hasn't played this epoch yet, returns a valid EpochUser with:
-    /// - No faction locked (epoch_faction = None)
-    /// - Zero faction points (available_fp = 0, locked_fp = 0)
-    /// - No contributions (total_fp_contributed = 0)
-    /// - Initial balance of 0 (not yet snapshotted)
+    /// total FP contributed, and balance snapshot.
     ///
     /// # Errors
-    /// * `UserNotFound` - If user has never interacted with the contract
+    /// * `UserNotFound` - If user hasn't played any games in the current epoch
     pub fn get_epoch_player(env: Env, user: Address) -> Result<types::EpochUser, Error> {
-        // Verify user exists first
-        let _user_data = storage::get_user(&env, &user).ok_or(Error::UserNotFound)?;
-
-        // Get epoch data - if user hasn't played this epoch, return valid defaults
         let current_epoch = storage::get_current_epoch(&env);
-        let epoch_user =
-            storage::get_epoch_user(&env, current_epoch, &user).unwrap_or(types::EpochUser {
-                epoch_faction: None,
-                epoch_balance_snapshot: 0,
-                available_fp: 0,
-                locked_fp: 0,
-                total_fp_contributed: 0,
-            });
-
-        Ok(epoch_user)
+        storage::get_epoch_user(&env, current_epoch, &user).ok_or(Error::UserNotFound)
     }
 
     // ========================================================================
