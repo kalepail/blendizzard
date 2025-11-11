@@ -83,7 +83,7 @@ fn test_pause_blocks_start_game() {
 }
 
 #[test]
-fn test_pause_blocks_claim_yield() {
+fn test_pause_blocks_claim_epoch_reward() {
     let env = setup_test_env();
     let (_game, _vault, _mock_vault, blendizzard, _usdc) = setup_complete_game_env(&env);
 
@@ -92,9 +92,9 @@ fn test_pause_blocks_claim_yield() {
     // Pause contract
     blendizzard.pause();
 
-    // claim_yield should fail when paused
-    let result = blendizzard.try_claim_yield(&user, &0);
-    assert!(result.is_err(), "claim_yield should fail when paused");
+    // claim_epoch_reward should fail when paused
+    let result = blendizzard.try_claim_epoch_reward(&user, &0);
+    assert!(result.is_err(), "claim_epoch_reward should fail when paused");
 }
 
 #[test]
@@ -166,14 +166,14 @@ fn test_has_claimed_rewards_initially_false() {
 }
 
 #[test]
-fn test_claim_yield_before_epoch_finalized() {
+fn test_claim_epoch_reward_before_epoch_finalized() {
     let env = setup_test_env();
     let (_game, _vault, _mock_vault, blendizzard, _usdc) = setup_complete_game_env(&env);
 
     let user = Address::generate(&env);
 
     // Try to claim from epoch 0 before it's finalized
-    let result = blendizzard.try_claim_yield(&user, &0);
+    let result = blendizzard.try_claim_epoch_reward(&user, &0);
     assert!(result.is_err(), "Should fail to claim from unfinalized epoch");
 }
 
@@ -330,7 +330,7 @@ fn test_faction_switch_applies_next_epoch() {
 // ============================================================================
 
 #[test]
-fn test_deposit_timestamp_initialized_on_first_game() {
+fn test_time_multiplier_start_initialized_on_first_game() {
     let env = setup_test_env();
     let (game, _vault, mock_vault, blendizzard, _usdc) = setup_complete_game_env(&env);
 
@@ -351,9 +351,9 @@ fn test_deposit_timestamp_initialized_on_first_game() {
     let session = 30u32;
     blendizzard.start_game(&game, &session, &player, &opponent, &50_0000000, &50_0000000);
 
-    // After first game, deposit_timestamp should be set
+    // After first game, time_multiplier_start should be set
     let player_data = blendizzard.get_player(&player);
-    assert!(player_data.deposit_timestamp > 0, "Deposit timestamp should be initialized");
+    assert!(player_data.time_multiplier_start > 0, "Deposit timestamp should be initialized");
 }
 
 #[test]

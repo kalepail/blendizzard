@@ -215,6 +215,55 @@ fn test_faction_locks_on_first_game() {
 // The withdrawal reset logic is tested in integration tests with full infrastructure.
 
 #[test]
+fn test_session_stores_epoch_id() {
+    let env = setup_test_env();
+    let (_admin, game_contract, _vault_addr, mock_vault, blendizzard) = setup_game_test_env(&env);
+
+    let player1 = Address::generate(&env);
+    let player2 = Address::generate(&env);
+
+    // Set vault balances
+    mock_vault.set_user_balance(&player1, &1000_0000000);
+    mock_vault.set_user_balance(&player2, &1000_0000000);
+
+    // Select factions
+    blendizzard.select_faction(&player1, &0);
+    blendizzard.select_faction(&player2, &1);
+
+    // Start game in epoch 0
+    let session_id = 999u32;
+    let wager = 100_0000000;
+    blendizzard.start_game(&game_contract, &session_id, &player1, &player2, &wager, &wager);
+
+    // Verify session exists and can be completed in same epoch
+    let proof = soroban_sdk::Bytes::new(&env);
+    let outcome = crate::types::GameOutcome {
+        game_id: game_contract.clone(),
+        session_id: session_id.clone(),
+        player1: player1.clone(),
+        player2: player2.clone(),
+        winner: true,
+    };
+
+    // This should succeed because we're in the same epoch
+    blendizzard.end_game(&game_contract, &session_id, &proof, &outcome);
+
+    // Verify game completed
+    let p1_epoch = blendizzard.get_epoch_player(&player1);
+    assert_eq!(p1_epoch.locked_fp, 0, "Game should have completed and unlocked FP");
+    assert_eq!(
+        p1_epoch.total_fp_contributed,
+        wager,
+        "Winner's contribution should be recorded"
+    );
+}
+
+// NOTE: Full cross-epoch game rejection test requires cycle_epoch with real token contracts.
+// The validation logic is in place (end_game checks session.epoch_id == current_epoch),
+// but testing it requires the full integration test infrastructure.
+// The rejection with Error::GameExpired (#26) will be tested in integration tests.
+
+#[test]
 fn test_fp_calculation_with_amount_multiplier() {
     let env = setup_test_env();
     let (_admin, game_contract, _vault_addr, mock_vault, blendizzard) = setup_game_test_env(&env);
@@ -282,7 +331,7 @@ fn test_fp_calculation_with_time_multiplier() {
     blendizzard.select_faction(&player2, &1);
     blendizzard.select_faction(&opponent, &2);
 
-    // Player1 starts a game immediately - deposit_timestamp set at T=0
+    // Player1 starts a game immediately - time_multiplier_start set at T=0
     let session_id1 = 9u32;
     blendizzard.start_game(&game_contract, &session_id1, &player1, &opponent, &50_0000000, &50_0000000);
 
@@ -293,7 +342,7 @@ fn test_fp_calculation_with_time_multiplier() {
     // Jump 30 days forward
     env.ledger().with_mut(|li| li.timestamp += 86_400 * 30);
 
-    // Player2 starts their first game 30 days later - deposit_timestamp set at T=30days
+    // Player2 starts their first game 30 days later - time_multiplier_start set at T=30days
     // But current_time is also T=30days, so time_multiplier is still ~1.0x
     // This won't show time multiplier difference!
 
@@ -323,5 +372,35 @@ fn test_fp_calculation_with_time_multiplier() {
         p1_total_fp_before,
         p1_total_fp_after,
         "Total FP should remain constant within an epoch"
+    );
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #16)")]
+fn test_start_game_without_faction_selection() {
+    let env = setup_test_env();
+    let (_admin, game_contract, _vault_addr, mock_vault, blendizzard) = setup_game_test_env(&env);
+
+    let player1 = Address::generate(&env);
+    let player2 = Address::generate(&env);
+
+    // Set vault balances for both players
+    let p1_balance = 1000_0000000; // 1000 USDC
+    let p2_balance = 500_0000000;  // 500 USDC
+    mock_vault.set_user_balance(&player1, &p1_balance);
+    mock_vault.set_user_balance(&player2, &p2_balance);
+
+    // Player1 selects a faction, but player2 does NOT
+    blendizzard.select_faction(&player1, &0); // WholeNoodle
+
+    // Attempt to start a game - should panic with FactionNotSelected error (#16)
+    let session_id = 1u32;
+    blendizzard.start_game(
+        &game_contract,
+        &session_id,
+        &player1,
+        &player2,
+        &100_0000000, // 100 FP wager
+        &50_0000000,  // 50 FP wager
     );
 }

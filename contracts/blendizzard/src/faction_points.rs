@@ -43,7 +43,7 @@ use crate::types::{EpochUser, FIXED_POINT_ONE, MAX_AMOUNT_USD, MAX_TIME_SECONDS,
 /// * `OverflowError` - If calculation overflows
 pub(crate) fn calculate_faction_points(env: &Env, user: &Address) -> Result<i128, Error> {
     // Get user data
-    let user_data = storage::get_user(env, user).ok_or(Error::InsufficientBalance)?;
+    let user_data = storage::get_user(env, user).ok_or(Error::UserNotFound)?;
 
     // NEW: Query vault balance instead of using cached total_deposited
     let base_amount = crate::vault::get_vault_balance(env, user);
@@ -59,7 +59,7 @@ pub(crate) fn calculate_faction_points(env: &Env, user: &Address) -> Result<i128
     let amount_mult = calculate_amount_multiplier(base_amount)?;
 
     // Calculate time multiplier
-    let time_mult = calculate_time_multiplier(env, user_data.deposit_timestamp)?;
+    let time_mult = calculate_time_multiplier(env, user_data.time_multiplier_start)?;
 
     // Calculate final FP: base_amount * amount_mult * time_mult
     let fp = calculate_fp_from_multipliers(base_amount, amount_mult, time_mult)?;
@@ -106,20 +106,20 @@ fn calculate_amount_multiplier(amount_usd: i128) -> Result<i128, Error> {
 ///
 /// # Arguments
 /// * `env` - Contract environment
-/// * `deposit_timestamp` - When user deposited (or last reset)
+/// * `time_multiplier_start` - When the time multiplier clock started (first game or last reset)
 ///
 /// # Returns
 /// Multiplier in fixed-point format (7 decimals)
-fn calculate_time_multiplier(env: &Env, deposit_timestamp: u64) -> Result<i128, Error> {
+fn calculate_time_multiplier(env: &Env, time_multiplier_start: u64) -> Result<i128, Error> {
     let current_time = env.ledger().timestamp();
 
-    // If no deposit yet, multiplier is 1.0
-    if deposit_timestamp == 0 || deposit_timestamp > current_time {
+    // If not started yet, multiplier is 1.0
+    if time_multiplier_start == 0 || time_multiplier_start > current_time {
         return Ok(FIXED_POINT_ONE);
     }
 
     // Calculate time held in seconds
-    let time_held = current_time - deposit_timestamp;
+    let time_held = current_time - time_multiplier_start;
 
     if time_held == 0 {
         return Ok(FIXED_POINT_ONE);
@@ -204,7 +204,7 @@ pub(crate) fn initialize_epoch_fp(env: &Env, user: &Address, current_epoch: u32)
     // Get or create epoch user data
     let mut epoch_user = storage::get_epoch_user(env, current_epoch, user).unwrap_or(EpochUser {
         epoch_faction: None,
-        initial_balance: current_balance, // Snapshot current balance
+        epoch_balance_snapshot: current_balance, // Snapshot current balance
         available_fp: 0,
         locked_fp: 0,
         total_fp_contributed: 0,
@@ -213,7 +213,7 @@ pub(crate) fn initialize_epoch_fp(env: &Env, user: &Address, current_epoch: u32)
     // Set available FP (only if not already set)
     if epoch_user.available_fp == 0 && epoch_user.locked_fp == 0 {
         epoch_user.available_fp = total_fp;
-        epoch_user.initial_balance = current_balance; // Update snapshot
+        epoch_user.epoch_balance_snapshot = current_balance; // Update snapshot
     }
 
     // Save epoch user data

@@ -44,7 +44,7 @@ pub(crate) fn select_faction(env: &Env, user: &Address, faction: u32) -> Result<
     // Get or create user data
     let mut user_data = storage::get_user(env, user).unwrap_or_else(|| crate::types::User {
         selected_faction: faction,
-        deposit_timestamp: 0,
+        time_multiplier_start: 0,
         last_epoch_balance: 0,
     });
 
@@ -78,16 +78,17 @@ pub(crate) fn select_faction(env: &Env, user: &Address, faction: u32) -> Result<
 /// The locked faction ID
 ///
 /// # Errors
+/// * `FactionNotSelected` - If user hasn't explicitly selected a faction
 /// * `FactionAlreadyLocked` - If faction is already locked for this epoch
 pub(crate) fn lock_epoch_faction(env: &Env, user: &Address, current_epoch: u32) -> Result<u32, Error> {
-    // Get user's selected faction (default to WholeNoodle if not set)
-    let user_data = storage::get_user(env, user);
-    let selected_faction = user_data.map(|u| u.selected_faction).unwrap_or(0);
+    // Get user's selected faction - user MUST have explicitly selected one
+    let user_data = storage::get_user(env, user).ok_or(Error::FactionNotSelected)?;
+    let selected_faction = user_data.selected_faction;
 
     // Get or create epoch user data
     let mut epoch_user = storage::get_epoch_user(env, current_epoch, user).unwrap_or(EpochUser {
         epoch_faction: None,
-        initial_balance: 0, // Will be set when FP is calculated
+        epoch_balance_snapshot: 0, // Will be set when FP is calculated
         available_fp: 0,
         locked_fp: 0,
         total_fp_contributed: 0,

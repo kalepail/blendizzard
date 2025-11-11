@@ -3,10 +3,24 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
+  "workspaces": [
+    "bindings/*"
+  ],
+  "scripts": {
+    "update:bindings": "ncu -u && cd bindings/blendizzard && ncu -u && cd ../fee-vault && ncu -u && cd ../number-guess && ncu -u && cd ../..",
+    "install:bindings": "cd bindings/blendizzard && bun install --force && cd ../fee-vault && bun install --force && cd ../number-guess && bun install --force && cd ../..",
+    "build:bindings": "cd bindings/blendizzard && bun run build && cd ../fee-vault && bun run build && cd ../number-guess && bun run build && cd ../..",
+    "bindings:all": "bun run update:bindings && bun run install:bindings && bun run build:bindings"
   },
-  "peerDependencies": {
-    "typescript": "^5"
+  "dependencies": {
+    "@stellar/stellar-sdk": "^14.3.2",
+    "buffer": "^6.0.3",
+    "blendizzard": "workspace:*",
+    "fee-vault": "workspace:*",
+    "number-guess": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
   }
 }

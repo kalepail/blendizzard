@@ -10,10 +10,10 @@ use crate::types::SCALAR_7;
 // Reward Distribution
 // ============================================================================
 
-/// Claim epoch winnings/yield for a user for a specific epoch
+/// Claim epoch reward for a user for a specific epoch
 ///
-/// From PLAN.md:
-/// "Claim the epoch winnings/yield for a user for a specific epoch"
+/// Users who contributed FP to the winning faction can claim their share
+/// of the epoch's reward pool (USDC converted from BLND yield).
 ///
 /// Formula:
 /// ```
@@ -33,7 +33,7 @@ use crate::types::SCALAR_7;
 /// * `RewardAlreadyClaimed` - If user already claimed for this epoch
 /// * `NotWinningFaction` - If user wasn't in the winning faction
 /// * `NoRewardsAvailable` - If user has no rewards to claim
-pub(crate) fn claim_yield(env: &Env, user: &Address, epoch: u32) -> Result<i128, Error> {
+pub(crate) fn claim_epoch_reward(env: &Env, user: &Address, epoch: u32) -> Result<i128, Error> {
     // Authenticate user
     user.require_auth();
 

@@ -130,6 +130,11 @@ pub(crate) fn start_game(
     player1.require_auth();
     player2.require_auth();
 
+    // CRITICAL: Validate both players have explicitly selected a faction
+    // This check must happen BEFORE any other initialization logic
+    storage::get_user(env, player1).ok_or(Error::FactionNotSelected)?;
+    storage::get_user(env, player2).ok_or(Error::FactionNotSelected)?;
+
     // Get current epoch
     let current_epoch = storage::get_current_epoch(env);
 
@@ -150,6 +155,7 @@ pub(crate) fn start_game(
     let session = GameSession {
         game_id: game_id.clone(),
         session_id,
+        epoch_id: current_epoch,
         player1: player1.clone(),
         player2: player2.clone(),
         player1_wager,
@@ -214,6 +220,13 @@ pub(crate) fn end_game(
         return Err(Error::InvalidSessionState);
     }
 
+    // Validate game is from current epoch
+    // Games cannot be completed in a different epoch than they were started
+    let current_epoch = storage::get_current_epoch(env);
+    if session.epoch_id != current_epoch {
+        return Err(Error::GameExpired);
+    }
+
     // Validate outcome matches session
     if outcome.game_id != *game_id
         || outcome.session_id != session_id
@@ -249,7 +262,6 @@ pub(crate) fn end_game(
 
     // Spend FP: Both players LOSE their wagered FP (it's consumed/burned)
     // Only the winner's wager contributes to their faction standings
-    let current_epoch = storage::get_current_epoch(env);
 
     // Get both players' epoch data
     let mut winner_epoch = storage::get_epoch_user(env, current_epoch, winner)
@@ -302,7 +314,7 @@ pub(crate) fn end_game(
 /// **NEW ARCHITECTURE (Cross-Epoch Balance Comparison):**
 /// 1. Query current vault balance
 /// 2. Check for >50% withdrawal since last epoch
-/// 3. Initialize deposit_timestamp if first-time user
+/// 3. Initialize time_multiplier_start if first-time user
 /// 4. Calculate FP based on current balance + multipliers
 /// 5. Save epoch snapshot and update last_epoch_balance
 fn initialize_player_epoch(env: &Env, player: &Address, current_epoch: u32) -> Result<(), Error> {
@@ -318,13 +330,13 @@ fn initialize_player_epoch(env: &Env, player: &Address, current_epoch: u32) -> R
     // STEP 2: Get or create user record
     let mut user_data = storage::get_user(env, player).unwrap_or(crate::types::User {
         selected_faction: 0, // Default to WholeNoodle
-        deposit_timestamp: 0,
+        time_multiplier_start: 0,
         last_epoch_balance: 0,
     });
 
-    // STEP 3: Initialize deposit_timestamp if first-time user
-    if user_data.deposit_timestamp == 0 && current_balance > 0 {
-        user_data.deposit_timestamp = env.ledger().timestamp();
+    // STEP 3: Initialize time_multiplier_start if first-time user
+    if user_data.time_multiplier_start == 0 && current_balance > 0 {
+        user_data.time_multiplier_start = env.ledger().timestamp();
     }
 
     // STEP 4: Check for cross-epoch withdrawal reset (>50%)

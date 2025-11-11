@@ -38,6 +38,9 @@ pub enum Error {
     /// User does not exist (no deposits or interactions yet)
     UserNotFound = 15,
 
+    /// User must select a faction before playing games
+    FactionNotSelected = 16,
+
     // ========================================================================
     // Game errors (20-29)
     // ========================================================================
@@ -58,6 +61,9 @@ pub enum Error {
 
     /// Proof verification failed (ZK proof is invalid)
     ProofVerificationFailed = 25,
+
+    /// Game is from a previous epoch and cannot be completed
+    GameExpired = 26,
 
     // ========================================================================
     // Epoch errors (30-39)

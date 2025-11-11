@@ -345,7 +345,7 @@ impl Blendizzard {
         let epoch_user =
             storage::get_epoch_user(&env, current_epoch, &user).unwrap_or(types::EpochUser {
                 epoch_faction: None,
-                initial_balance: 0,
+                epoch_balance_snapshot: 0,
                 available_fp: 0,
                 locked_fp: 0,
                 total_fp_contributed: 0,
@@ -446,10 +446,10 @@ impl Blendizzard {
     // Reward Claims
     // ========================================================================
 
-    /// Claim epoch winnings/yield for a user for a specific epoch
+    /// Claim epoch reward for a user for a specific epoch
     ///
-    /// Calculates user's share of the reward pool based on their fp contribution
-    /// to the winning faction.
+    /// Users who contributed FP to the winning faction can claim their share
+    /// of the epoch's reward pool (USDC converted from BLND yield).
     ///
     /// # Returns
     /// Amount of USDC claimed
@@ -460,9 +460,9 @@ impl Blendizzard {
     /// * `NotWinningFaction` - If user wasn't in the winning faction
     /// * `NoRewardsAvailable` - If user has no rewards to claim
     /// * `ContractPaused` - If contract is in emergency pause mode
-    pub fn claim_yield(env: Env, user: Address, epoch: u32) -> Result<i128, Error> {
+    pub fn claim_epoch_reward(env: Env, user: Address, epoch: u32) -> Result<i128, Error> {
         storage::require_not_paused(&env)?;
-        rewards::claim_yield(&env, &user, epoch)
+        rewards::claim_epoch_reward(&env, &user, epoch)
     }
 
     /// Calculate how much a user would receive if they claimed now

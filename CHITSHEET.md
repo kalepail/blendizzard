@@ -11,10 +11,20 @@ CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH
 CBBY53VYJSMAWCBZZ7BHJZ5XSZNJUS4ZE6Q4RN7TKZGHPYHMEE467W7Y
 
 // blendizzard
+0aa8f825c6af2412c75155dc1be10cc9184f9db19266d95fc68acfe6cf46cdbf
 CAK6Z6KFMB3V2ENEJ7THVKXUYQ5EG7EL2TM5UQ2FLDXI37FS6DRIMIZH
+
+// number guess
+CDB6IODG5BNNVILLJXBXYZVR7NP4HDO2NL7WALWIXGIDMA6VY4V75CEX
 
 // deploy blendizzard
 stellar contract deploy --wasm target/wasm32v1-none/release/blendizzard.optimized.wasm --network mainnet --source rich -- --epoch_duration 60 --usdc_token CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75 --reserve_token_ids "[3]" --admin rich --blnd_token CD25MNVTZDL4Y3XBCPCJXGXATV5WUHHOWMYFF4YBEGU5FCPGMYTVG5JY --soroswap_router CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH --fee_vault CBBY53VYJSMAWCBZZ7BHJZ5XSZNJUS4ZE6Q4RN7TKZGHPYHMEE467W7Y
+
+// install blendizzard
+stellar contract upload --wasm target/wasm32v1-none/release/blendizzard.optimized.wasm --source rich --fee 1000000000
+
+// upgrade blendizzard
+stellar contract invoke --id CAK6Z6KFMB3V2ENEJ7THVKXUYQ5EG7EL2TM5UQ2FLDXI37FS6DRIMIZH --source rich --fee 10000000 -- upgrade --new_wasm_hash 0aa8f825c6af2412c75155dc1be10cc9184f9db19266d95fc68acfe6cf46cdbf
 
 // deposit 5 USDC
 stellar contract invoke --id CBBY53VYJSMAWCBZZ7BHJZ5XSZNJUS4ZE6Q4RN7TKZGHPYHMEE467W7Y --network mainnet --source default --fee 10000000 -- deposit --user default --amount 50000000

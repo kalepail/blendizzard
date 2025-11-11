@@ -798,7 +798,7 @@ fn test_full_epoch_cycle_with_rewards() {
                 // They should be able to claim rewards
                 let usdc_before = usdc_token_client.balance(&player);
 
-                let claimed_amount = blendizzard.claim_yield(&player, &0);
+                let claimed_amount = blendizzard.claim_epoch_reward(&player, &0);
 
                 let usdc_after = usdc_token_client.balance(&player);
 
@@ -817,7 +817,7 @@ fn test_full_epoch_cycle_with_rewards() {
                 );
 
                 // Verify can't claim twice
-                let double_claim_result = blendizzard.try_claim_yield(&player, &0);
+                let double_claim_result = blendizzard.try_claim_epoch_reward(&player, &0);
                 assert!(double_claim_result.is_err(), "Should not be able to claim twice");
             } else if player_faction != winning_faction && player_epoch.total_fp_contributed > 0 {
                 // Losers from other factions with contribution shouldn't get rewards

@@ -25,7 +25,7 @@ impl Faction {
 
 /// Persistent user data (across all epochs)
 ///
-/// Stores the user's faction preference and deposit information.
+/// Stores the user's faction preference and time multiplier tracking.
 /// This persists across epoch boundaries.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -33,8 +33,10 @@ pub struct User {
     /// The user's persistent faction selection (can be changed between epochs)
     pub selected_faction: u32,
 
-    /// Timestamp when the user first deposited (or last reset via >50% withdrawal)
-    pub deposit_timestamp: u64,
+    /// Timestamp when the time multiplier calculation started
+    /// Set when user plays their first game (with vault balance > 0)
+    /// Reset to current time if user withdraws >50% between epochs
+    pub time_multiplier_start: u64,
 
     /// User's vault balance from the previous epoch (for cross-epoch comparison)
     /// Used to detect >50% withdrawal between epochs
@@ -54,8 +56,8 @@ pub struct EpochUser {
     pub epoch_faction: Option<u32>,
 
     /// User's vault balance snapshot at first game of this epoch
-    /// Used to save the balance this epoch's FP was calculated from
-    pub initial_balance: i128,
+    /// Captures the vault balance used to calculate this epoch's FP
+    pub epoch_balance_snapshot: i128,
 
     /// Available faction points (not locked in games)
     /// Calculated once at first game of epoch and remains valid until next epoch
@@ -110,6 +112,10 @@ pub struct GameSession {
 
     /// Unique session identifier for this game instance
     pub session_id: u32,
+
+    /// Epoch when this game was created
+    /// Used to prevent games from being completed in a different epoch
+    pub epoch_id: u32,
 
     /// First player's address
     pub player1: Address,

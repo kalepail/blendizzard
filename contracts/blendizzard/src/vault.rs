@@ -32,9 +32,9 @@ pub(crate) fn get_vault_balance(env: &Env, user: &Address) -> i128 {
 
 /// Check if user's balance has decreased by >50% since last epoch
 ///
-/// This implements the deposit reset rule in the new cross-epoch architecture:
+/// This implements the time multiplier reset rule in the cross-epoch architecture:
 /// - Compare current vault balance to last_epoch_balance
-/// - If net withdrawal > 50%, reset deposit_timestamp
+/// - If net withdrawal > 50%, reset time_multiplier_start
 ///
 /// # Arguments
 /// * `env` - Contract environment
@@ -49,8 +49,10 @@ pub(crate) fn check_cross_epoch_withdrawal_reset(
     user: &Address,
     current_balance: i128,
 ) -> Result<bool, Error> {
-    // Get user data
-    let mut user_data = storage::get_user(env, user).ok_or(Error::UserNotFound)?;
+    // Get user data - if user doesn't exist yet, no reset needed
+    let Some(mut user_data) = storage::get_user(env, user) else {
+        return Ok(false);
+    };
 
     // Skip check if no previous balance recorded
     if user_data.last_epoch_balance == 0 {
@@ -77,8 +79,8 @@ pub(crate) fn check_cross_epoch_withdrawal_reset(
     let reset = withdrawal_ratio > threshold;
 
     if reset {
-        // Reset deposit timestamp to now
-        user_data.deposit_timestamp = env.ledger().timestamp();
+        // Reset time multiplier start to now
+        user_data.time_multiplier_start = env.ledger().timestamp();
         storage::set_user(env, user, &user_data);
     }
 
@@ -94,7 +96,7 @@ pub(crate) fn check_cross_epoch_withdrawal_reset(
 // - withdraw() - Users withdraw directly from fee-vault-v2
 // - check_and_handle_withdrawal_reset() - Replaced by cross-epoch comparison
 // - get_balance() - Replaced by get_vault_balance()
-// - get_deposit_timestamp() - Still available via storage::get_user()
+// - get_time_multiplier_start() - Still available via storage::get_user()
 
 // NEW ARCHITECTURE:
 // 1. Users interact directly with fee-vault-v2 for deposits/withdrawals
