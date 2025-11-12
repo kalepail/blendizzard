@@ -840,38 +840,18 @@ export interface Client {
   }) => Promise<AssembledTransaction<Result<void>>>
 
   /**
-   * Construct and simulate a get_reward_pool transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Get the reward pool (USDC) for a finalized epoch
-   * 
-   * # Errors
-   * * `EpochNotFinalized` - If epoch doesn't exist or isn't finalized
-   */
-  get_reward_pool: ({epoch}: {epoch: u32}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<i128>>>
-
-  /**
    * Construct and simulate a get_epoch_player transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Get player's epoch-specific information for the current epoch
    * 
    * Returns complete epoch-specific data including locked faction, available/locked FP,
    * total FP contributed, and balance snapshot.
    * 
+   * **NEW BEHAVIOR:** If user hasn't played any games this epoch yet, calculates
+   * what their FP WOULD be based on current vault balance without writing to storage.
+   * This allows UIs to display FP before the user's first game.
+   * 
    * # Errors
-   * * `UserNotFound` - If user hasn't played any games in the current epoch
+   * * `FactionNotSelected` - If user hasn't selected a faction yet
    */
   get_epoch_player: ({user}: {user: string}, options?: {
     /**
@@ -891,34 +871,14 @@ export interface Client {
   }) => Promise<AssembledTransaction<Result<EpochUser>>>
 
   /**
-   * Construct and simulate a is_faction_locked transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Check if a user's faction is locked for the current epoch
-   * 
-   * Once locked (after first game), faction cannot be changed until next epoch.
-   */
-  is_faction_locked: ({user}: {user: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<boolean>>
-
-  /**
    * Construct and simulate a claim_epoch_reward transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Claim epoch reward for a user for a specific epoch
    * 
    * Users who contributed FP to the winning faction can claim their share
    * of the epoch's reward pool (USDC converted from BLND yield).
+   * 
+   * **Note:** To check claimable amounts or claim status before calling,
+   * use transaction simulation. This is the idiomatic Soroban pattern.
    * 
    * # Returns
    * Amount of USDC claimed
@@ -946,104 +906,6 @@ export interface Client {
      */
     simulate?: boolean;
   }) => Promise<AssembledTransaction<Result<i128>>>
-
-  /**
-   * Construct and simulate a get_winning_faction transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Get the winning faction for a finalized epoch
-   * 
-   * # Errors
-   * * `EpochNotFinalized` - If epoch doesn't exist or isn't finalized
-   */
-  get_winning_faction: ({epoch}: {epoch: u32}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<u32>>>
-
-  /**
-   * Construct and simulate a has_claimed_rewards transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Check if user has claimed rewards for an epoch
-   */
-  has_claimed_rewards: ({user, epoch}: {user: string, epoch: u32}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<boolean>>
-
-  /**
-   * Construct and simulate a get_claimable_amount transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Calculate how much a user would receive if they claimed now
-   * 
-   * This doesn't actually claim, just calculates the amount.
-   * Useful for UIs to show pending rewards.
-   * 
-   * # Returns
-   * Amount user would receive, or 0 if not eligible
-   */
-  get_claimable_amount: ({user, epoch}: {user: string, epoch: u32}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<i128>>
-
-  /**
-   * Construct and simulate a get_faction_standings transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Get faction standings for a specific epoch
-   * 
-   * Returns a map of faction ID to total faction points.
-   * 
-   * # Errors
-   * * `EpochNotFinalized` - If epoch doesn't exist
-   */
-  get_faction_standings: ({epoch}: {epoch: u32}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<Map<u32, i128>>>>
 
 }
 export class Client extends ContractClient {
@@ -1083,14 +945,8 @@ export class Client extends ContractClient {
         "AAAAAAAAAnRJbml0aWFsaXplIHRoZSBjb250cmFjdAoKU2V0cyB1cCB0aGUgYWRtaW4sIGV4dGVybmFsIGNvbnRyYWN0IGFkZHJlc3NlcywgYW5kIGNyZWF0ZXMgdGhlIGZpcnN0IGVwb2NoLgoKIyBBcmd1bWVudHMKKiBgYWRtaW5gIC0gQWRtaW4gYWRkcmVzcyAoY2FuIG1vZGlmeSBjb25maWcgYW5kIHVwZ3JhZGUgY29udHJhY3QpCiogYGZlZV92YXVsdGAgLSBmZWUtdmF1bHQtdjIgY29udHJhY3QgYWRkcmVzcwoqIGBzb3Jvc3dhcF9yb3V0ZXJgIC0gU29yb3N3YXAgcm91dGVyIGNvbnRyYWN0IGFkZHJlc3MKKiBgYmxuZF90b2tlbmAgLSBCTE5EIHRva2VuIGFkZHJlc3MKKiBgdXNkY190b2tlbmAgLSBVU0RDIHRva2VuIGFkZHJlc3MKKiBgZXBvY2hfZHVyYXRpb25gIC0gRHVyYXRpb24gb2YgZWFjaCBlcG9jaCBpbiBzZWNvbmRzIChkZWZhdWx0OiAzNDUsNjAwID0gNCBkYXlzKQoqIGByZXNlcnZlX3Rva2VuX2lkc2AgLSBSZXNlcnZlIHRva2VuIElEcyBmb3IgY2xhaW1pbmcgQkxORCBlbWlzc2lvbnMgKGUuZy4sIHZlYyFbJmVudiwgMV0gZm9yIHJlc2VydmUgMCBiLXRva2VucykKCiMgRXJyb3JzCiogYEFscmVhZHlJbml0aWFsaXplZGAgLSBJZiBjb250cmFjdCBoYXMgYWxyZWFkeSBiZWVuIGluaXRpYWxpemVkAAAADV9fY29uc3RydWN0b3IAAAAAAAAHAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAACWZlZV92YXVsdAAAAAAAABMAAAAAAAAAD3Nvcm9zd2FwX3JvdXRlcgAAAAATAAAAAAAAAApibG5kX3Rva2VuAAAAAAATAAAAAAAAAAp1c2RjX3Rva2VuAAAAAAATAAAAAAAAAA5lcG9jaF9kdXJhdGlvbgAAAAAABgAAAAAAAAARcmVzZXJ2ZV90b2tlbl9pZHMAAAAAAAPqAAAABAAAAAEAAAPpAAAD7QAAAAAAAAAD",
         "AAAAAAAAAmFVcGRhdGUgZ2xvYmFsIGNvbmZpZ3VyYXRpb24KCkFsbG93cyBhZG1pbiB0byB1cGRhdGUgc3BlY2lmaWMgY29uZmlndXJhdGlvbiBwYXJhbWV0ZXJzLgpPbmx5IHVwZGF0ZXMgcGFyYW1ldGVycyB0aGF0IGFyZSBwcm92aWRlZCAobm9uLU5vbmUpLgoKIyBBcmd1bWVudHMKKiBgbmV3X2ZlZV92YXVsdGAgLSBOZXcgZmVlLXZhdWx0LXYyIGNvbnRyYWN0IGFkZHJlc3MgKG9wdGlvbmFsKQoqIGBuZXdfc29yb3N3YXBfcm91dGVyYCAtIE5ldyBTb3Jvc3dhcCByb3V0ZXIgY29udHJhY3QgYWRkcmVzcyAob3B0aW9uYWwpCiogYG5ld19ibG5kX3Rva2VuYCAtIE5ldyBCTE5EIHRva2VuIGFkZHJlc3MgKG9wdGlvbmFsKQoqIGBuZXdfdXNkY190b2tlbmAgLSBOZXcgVVNEQyB0b2tlbiBhZGRyZXNzIChvcHRpb25hbCkKKiBgbmV3X2Vwb2NoX2R1cmF0aW9uYCAtIE5ldyBlcG9jaCBkdXJhdGlvbiBpbiBzZWNvbmRzIChvcHRpb25hbCkKKiBgbmV3X3Jlc2VydmVfdG9rZW5faWRzYCAtIE5ldyByZXNlcnZlIHRva2VuIElEcyBmb3IgY2xhaW1pbmcgQkxORCBlbWlzc2lvbnMgKG9wdGlvbmFsKQoKIyBFcnJvcnMKKiBgTm90QWRtaW5gIC0gSWYgY2FsbGVyIGlzIG5vdCB0aGUgYWRtaW4AAAAAAAANdXBkYXRlX2NvbmZpZwAAAAAAAAYAAAAAAAAADW5ld19mZWVfdmF1bHQAAAAAAAPoAAAAEwAAAAAAAAATbmV3X3Nvcm9zd2FwX3JvdXRlcgAAAAPoAAAAEwAAAAAAAAAObmV3X2JsbmRfdG9rZW4AAAAAA+gAAAATAAAAAAAAAA5uZXdfdXNkY190b2tlbgAAAAAD6AAAABMAAAAAAAAAEm5ld19lcG9jaF9kdXJhdGlvbgAAAAAD6AAAAAYAAAAAAAAAFW5ld19yZXNlcnZlX3Rva2VuX2lkcwAAAAAAA+gAAAPqAAAABAAAAAEAAAPpAAAD7QAAAAAAAAAD",
         "AAAAAAAAAdZTZWxlY3QgYSBmYWN0aW9uIGZvciB0aGUgdXNlcgoKU2V0cyB0aGUgdXNlcidzIHBlcnNpc3RlbnQgZmFjdGlvbiBwcmVmZXJlbmNlLiBDYW4gYmUgY2hhbmdlZCBhdCBBTlkgdGltZS4KSWYgeW91IGhhdmVuJ3QgcGxheWVkIGEgZ2FtZSB0aGlzIGVwb2NoLCB0aGUgbmV3IGZhY3Rpb24gYXBwbGllcyBpbW1lZGlhdGVseS4KSWYgeW91J3ZlIGFscmVhZHkgcGxheWVkIHRoaXMgZXBvY2gsIHRoZSBjdXJyZW50IGVwb2NoIHN0YXlzIGxvY2tlZCB0byB5b3VyCm9sZCBmYWN0aW9uLCBhbmQgdGhlIG5ldyBzZWxlY3Rpb24gYXBwbGllcyBzdGFydGluZyBuZXh0IGVwb2NoLgoKIyBBcmd1bWVudHMKKiBgZmFjdGlvbmAgLSBGYWN0aW9uIElEICgwPVdob2xlTm9vZGxlLCAxPVBvaW50eVN0aWNrLCAyPVNwZWNpYWxSb2NrKQoKIyBFcnJvcnMKKiBgSW52YWxpZEZhY3Rpb25gIC0gSWYgZmFjdGlvbiBJRCBpcyBub3QgMCwgMSwgb3IgMgAAAAAADnNlbGVjdF9mYWN0aW9uAAAAAAACAAAAAAAAAAR1c2VyAAAAEwAAAAAAAAAHZmFjdGlvbgAAAAAEAAAAAQAAA+kAAAPtAAAAAAAAAAM=",
-        "AAAAAAAAAHxHZXQgdGhlIHJld2FyZCBwb29sIChVU0RDKSBmb3IgYSBmaW5hbGl6ZWQgZXBvY2gKCiMgRXJyb3JzCiogYEVwb2NoTm90RmluYWxpemVkYCAtIElmIGVwb2NoIGRvZXNuJ3QgZXhpc3Qgb3IgaXNuJ3QgZmluYWxpemVkAAAAD2dldF9yZXdhcmRfcG9vbAAAAAABAAAAAAAAAAVlcG9jaAAAAAAAAAQAAAABAAAD6QAAAAsAAAAD",
-        "AAAAAAAAARBHZXQgcGxheWVyJ3MgZXBvY2gtc3BlY2lmaWMgaW5mb3JtYXRpb24gZm9yIHRoZSBjdXJyZW50IGVwb2NoCgpSZXR1cm5zIGNvbXBsZXRlIGVwb2NoLXNwZWNpZmljIGRhdGEgaW5jbHVkaW5nIGxvY2tlZCBmYWN0aW9uLCBhdmFpbGFibGUvbG9ja2VkIEZQLAp0b3RhbCBGUCBjb250cmlidXRlZCwgYW5kIGJhbGFuY2Ugc25hcHNob3QuCgojIEVycm9ycwoqIGBVc2VyTm90Rm91bmRgIC0gSWYgdXNlciBoYXNuJ3QgcGxheWVkIGFueSBnYW1lcyBpbiB0aGUgY3VycmVudCBlcG9jaAAAABBnZXRfZXBvY2hfcGxheWVyAAAAAQAAAAAAAAAEdXNlcgAAABMAAAABAAAD6QAAB9AAAAAJRXBvY2hVc2VyAAAAAAAAAw==",
-        "AAAAAAAAAIZDaGVjayBpZiBhIHVzZXIncyBmYWN0aW9uIGlzIGxvY2tlZCBmb3IgdGhlIGN1cnJlbnQgZXBvY2gKCk9uY2UgbG9ja2VkIChhZnRlciBmaXJzdCBnYW1lKSwgZmFjdGlvbiBjYW5ub3QgYmUgY2hhbmdlZCB1bnRpbCBuZXh0IGVwb2NoLgAAAAAAEWlzX2ZhY3Rpb25fbG9ja2VkAAAAAAAAAQAAAAAAAAAEdXNlcgAAABMAAAABAAAAAQ==",
-        "AAAAAAAAAhlDbGFpbSBlcG9jaCByZXdhcmQgZm9yIGEgdXNlciBmb3IgYSBzcGVjaWZpYyBlcG9jaAoKVXNlcnMgd2hvIGNvbnRyaWJ1dGVkIEZQIHRvIHRoZSB3aW5uaW5nIGZhY3Rpb24gY2FuIGNsYWltIHRoZWlyIHNoYXJlCm9mIHRoZSBlcG9jaCdzIHJld2FyZCBwb29sIChVU0RDIGNvbnZlcnRlZCBmcm9tIEJMTkQgeWllbGQpLgoKIyBSZXR1cm5zCkFtb3VudCBvZiBVU0RDIGNsYWltZWQKCiMgRXJyb3JzCiogYEVwb2NoTm90RmluYWxpemVkYCAtIElmIGVwb2NoIGRvZXNuJ3QgZXhpc3Qgb3IgaXNuJ3QgZmluYWxpemVkCiogYFJld2FyZEFscmVhZHlDbGFpbWVkYCAtIElmIHVzZXIgYWxyZWFkeSBjbGFpbWVkIGZvciB0aGlzIGVwb2NoCiogYE5vdFdpbm5pbmdGYWN0aW9uYCAtIElmIHVzZXIgd2Fzbid0IGluIHRoZSB3aW5uaW5nIGZhY3Rpb24KKiBgTm9SZXdhcmRzQXZhaWxhYmxlYCAtIElmIHVzZXIgaGFzIG5vIHJld2FyZHMgdG8gY2xhaW0KKiBgQ29udHJhY3RQYXVzZWRgIC0gSWYgY29udHJhY3QgaXMgaW4gZW1lcmdlbmN5IHBhdXNlIG1vZGUAAAAAAAASY2xhaW1fZXBvY2hfcmV3YXJkAAAAAAACAAAAAAAAAAR1c2VyAAAAEwAAAAAAAAAFZXBvY2gAAAAAAAAEAAAAAQAAA+kAAAALAAAAAw==",
-        "AAAAAAAAAHlHZXQgdGhlIHdpbm5pbmcgZmFjdGlvbiBmb3IgYSBmaW5hbGl6ZWQgZXBvY2gKCiMgRXJyb3JzCiogYEVwb2NoTm90RmluYWxpemVkYCAtIElmIGVwb2NoIGRvZXNuJ3QgZXhpc3Qgb3IgaXNuJ3QgZmluYWxpemVkAAAAAAAAE2dldF93aW5uaW5nX2ZhY3Rpb24AAAAAAQAAAAAAAAAFZXBvY2gAAAAAAAAEAAAAAQAAA+kAAAAEAAAAAw==",
-        "AAAAAAAAAC5DaGVjayBpZiB1c2VyIGhhcyBjbGFpbWVkIHJld2FyZHMgZm9yIGFuIGVwb2NoAAAAAAATaGFzX2NsYWltZWRfcmV3YXJkcwAAAAACAAAAAAAAAAR1c2VyAAAAEwAAAAAAAAAFZXBvY2gAAAAAAAAEAAAAAQAAAAE=",
-        "AAAAAAAAANhDYWxjdWxhdGUgaG93IG11Y2ggYSB1c2VyIHdvdWxkIHJlY2VpdmUgaWYgdGhleSBjbGFpbWVkIG5vdwoKVGhpcyBkb2Vzbid0IGFjdHVhbGx5IGNsYWltLCBqdXN0IGNhbGN1bGF0ZXMgdGhlIGFtb3VudC4KVXNlZnVsIGZvciBVSXMgdG8gc2hvdyBwZW5kaW5nIHJld2FyZHMuCgojIFJldHVybnMKQW1vdW50IHVzZXIgd291bGQgcmVjZWl2ZSwgb3IgMCBpZiBub3QgZWxpZ2libGUAAAAUZ2V0X2NsYWltYWJsZV9hbW91bnQAAAACAAAAAAAAAAR1c2VyAAAAEwAAAAAAAAAFZXBvY2gAAAAAAAAEAAAAAQAAAAs=",
-        "AAAAAAAAAJlHZXQgZmFjdGlvbiBzdGFuZGluZ3MgZm9yIGEgc3BlY2lmaWMgZXBvY2gKClJldHVybnMgYSBtYXAgb2YgZmFjdGlvbiBJRCB0byB0b3RhbCBmYWN0aW9uIHBvaW50cy4KCiMgRXJyb3JzCiogYEVwb2NoTm90RmluYWxpemVkYCAtIElmIGVwb2NoIGRvZXNuJ3QgZXhpc3QAAAAAAAAVZ2V0X2ZhY3Rpb25fc3RhbmRpbmdzAAAAAAAAAQAAAAAAAAAFZXBvY2gAAAAAAAAEAAAAAQAAA+kAAAPsAAAABAAAAAsAAAAD",
+        "AAAAAAAAAeNHZXQgcGxheWVyJ3MgZXBvY2gtc3BlY2lmaWMgaW5mb3JtYXRpb24gZm9yIHRoZSBjdXJyZW50IGVwb2NoCgpSZXR1cm5zIGNvbXBsZXRlIGVwb2NoLXNwZWNpZmljIGRhdGEgaW5jbHVkaW5nIGxvY2tlZCBmYWN0aW9uLCBhdmFpbGFibGUvbG9ja2VkIEZQLAp0b3RhbCBGUCBjb250cmlidXRlZCwgYW5kIGJhbGFuY2Ugc25hcHNob3QuCgoqKk5FVyBCRUhBVklPUjoqKiBJZiB1c2VyIGhhc24ndCBwbGF5ZWQgYW55IGdhbWVzIHRoaXMgZXBvY2ggeWV0LCBjYWxjdWxhdGVzCndoYXQgdGhlaXIgRlAgV09VTEQgYmUgYmFzZWQgb24gY3VycmVudCB2YXVsdCBiYWxhbmNlIHdpdGhvdXQgd3JpdGluZyB0byBzdG9yYWdlLgpUaGlzIGFsbG93cyBVSXMgdG8gZGlzcGxheSBGUCBiZWZvcmUgdGhlIHVzZXIncyBmaXJzdCBnYW1lLgoKIyBFcnJvcnMKKiBgRmFjdGlvbk5vdFNlbGVjdGVkYCAtIElmIHVzZXIgaGFzbid0IHNlbGVjdGVkIGEgZmFjdGlvbiB5ZXQAAAAAEGdldF9lcG9jaF9wbGF5ZXIAAAABAAAAAAAAAAR1c2VyAAAAEwAAAAEAAAPpAAAH0AAAAAlFcG9jaFVzZXIAAAAAAAAD",
+        "AAAAAAAAAqJDbGFpbSBlcG9jaCByZXdhcmQgZm9yIGEgdXNlciBmb3IgYSBzcGVjaWZpYyBlcG9jaAoKVXNlcnMgd2hvIGNvbnRyaWJ1dGVkIEZQIHRvIHRoZSB3aW5uaW5nIGZhY3Rpb24gY2FuIGNsYWltIHRoZWlyIHNoYXJlCm9mIHRoZSBlcG9jaCdzIHJld2FyZCBwb29sIChVU0RDIGNvbnZlcnRlZCBmcm9tIEJMTkQgeWllbGQpLgoKKipOb3RlOioqIFRvIGNoZWNrIGNsYWltYWJsZSBhbW91bnRzIG9yIGNsYWltIHN0YXR1cyBiZWZvcmUgY2FsbGluZywKdXNlIHRyYW5zYWN0aW9uIHNpbXVsYXRpb24uIFRoaXMgaXMgdGhlIGlkaW9tYXRpYyBTb3JvYmFuIHBhdHRlcm4uCgojIFJldHVybnMKQW1vdW50IG9mIFVTREMgY2xhaW1lZAoKIyBFcnJvcnMKKiBgRXBvY2hOb3RGaW5hbGl6ZWRgIC0gSWYgZXBvY2ggZG9lc24ndCBleGlzdCBvciBpc24ndCBmaW5hbGl6ZWQKKiBgUmV3YXJkQWxyZWFkeUNsYWltZWRgIC0gSWYgdXNlciBhbHJlYWR5IGNsYWltZWQgZm9yIHRoaXMgZXBvY2gKKiBgTm90V2lubmluZ0ZhY3Rpb25gIC0gSWYgdXNlciB3YXNuJ3QgaW4gdGhlIHdpbm5pbmcgZmFjdGlvbgoqIGBOb1Jld2FyZHNBdmFpbGFibGVgIC0gSWYgdXNlciBoYXMgbm8gcmV3YXJkcyB0byBjbGFpbQoqIGBDb250cmFjdFBhdXNlZGAgLSBJZiBjb250cmFjdCBpcyBpbiBlbWVyZ2VuY3kgcGF1c2UgbW9kZQAAAAAAEmNsYWltX2Vwb2NoX3Jld2FyZAAAAAAAAgAAAAAAAAAEdXNlcgAAABMAAAAAAAAABWVwb2NoAAAAAAAABAAAAAEAAAPpAAAACwAAAAM=",
         "AAAAAQAAAJNQZXJzaXN0ZW50IHVzZXIgZGF0YSAoYWNyb3NzIGFsbCBlcG9jaHMpCgpTdG9yZXMgdGhlIHVzZXIncyBmYWN0aW9uIHByZWZlcmVuY2UgYW5kIHRpbWUgbXVsdGlwbGllciB0cmFja2luZy4KVGhpcyBwZXJzaXN0cyBhY3Jvc3MgZXBvY2ggYm91bmRhcmllcy4AAAAAAAAAAARVc2VyAAAAAwAAAHdVc2VyJ3MgdmF1bHQgYmFsYW5jZSBmcm9tIHRoZSBwcmV2aW91cyBlcG9jaCAoZm9yIGNyb3NzLWVwb2NoIGNvbXBhcmlzb24pClVzZWQgdG8gZGV0ZWN0ID41MCUgd2l0aGRyYXdhbCBiZXR3ZWVuIGVwb2NocwAAAAASbGFzdF9lcG9jaF9iYWxhbmNlAAAAAAALAAAAR1RoZSB1c2VyJ3MgcGVyc2lzdGVudCBmYWN0aW9uIHNlbGVjdGlvbiAoY2FuIGJlIGNoYW5nZWQgYmV0d2VlbiBlcG9jaHMpAAAAABBzZWxlY3RlZF9mYWN0aW9uAAAABAAAALBUaW1lc3RhbXAgd2hlbiB0aGUgdGltZSBtdWx0aXBsaWVyIGNhbGN1bGF0aW9uIHN0YXJ0ZWQKU2V0IHdoZW4gdXNlciBwbGF5cyB0aGVpciBmaXJzdCBnYW1lICh3aXRoIHZhdWx0IGJhbGFuY2UgPiAwKQpSZXNldCB0byBjdXJyZW50IHRpbWUgaWYgdXNlciB3aXRoZHJhd3MgPjUwJSBiZXR3ZWVuIGVwb2NocwAAABV0aW1lX211bHRpcGxpZXJfc3RhcnQAAAAAAAAG",
         "AAAAAQAAAOhHbG9iYWwgY29uZmlndXJhdGlvbgoKU3RvcmVzIGNvbnRyYWN0IGNvbmZpZ3VyYXRpb24gcGFyYW1ldGVycy4KTm90ZTogQWRtaW4gYWRkcmVzcyBpcyBzdG9yZWQgc2VwYXJhdGVseSB2aWEgRGF0YUtleTo6QWRtaW4gZm9yIHNpbmdsZSBzb3VyY2Ugb2YgdHJ1dGguCk5vdGU6IFBhdXNlIHN0YXRlIGlzIHN0b3JlZCBzZXBhcmF0ZWx5IHZpYSBEYXRhS2V5OjpQYXVzZWQgZm9yIGVmZmljaWVudCBhY2Nlc3MuAAAAAAAAAAZDb25maWcAAAAAAAYAAAASQkxORCB0b2tlbiBhZGRyZXNzAAAAAAAKYmxuZF90b2tlbgAAAAAAEwAAAEVEdXJhdGlvbiBvZiBlYWNoIGVwb2NoIGluIHNlY29uZHMgKGRlZmF1bHQ6IDQgZGF5cyA9IDM0NSw2MDAgc2Vjb25kcykAAAAAAAAOZXBvY2hfZHVyYXRpb24AAAAAAAYAAAAdZmVlLXZhdWx0LXYyIGNvbnRyYWN0IGFkZHJlc3MAAAAAAAAJZmVlX3ZhdWx0AAAAAAAAEwAAAM5SZXNlcnZlIHRva2VuIElEcyBmb3IgY2xhaW1pbmcgQkxORCBlbWlzc2lvbnMgZnJvbSBCbGVuZCBwb29sCkZvcm11bGE6IHJlc2VydmVfaW5kZXggKiAyICsgdG9rZW5fdHlwZQp0b2tlbl90eXBlOiAwID0gZGVidCB0b2tlbiwgMSA9IGItdG9rZW4gKHN1cHBsaWVycykKRXhhbXBsZTogRm9yIHJlc2VydmUgMCBiLXRva2VucyAoc3VwcGxpZXJzKSwgdXNlIFsxXQAAAAAAEXJlc2VydmVfdG9rZW5faWRzAAAAAAAD6gAAAAQAAAAgU29yb3N3YXAgcm91dGVyIGNvbnRyYWN0IGFkZHJlc3MAAAAPc29yb3N3YXBfcm91dGVyAAAAABMAAAASVVNEQyB0b2tlbiBhZGRyZXNzAAAAAAAKdXNkY190b2tlbgAAAAAAEw==",
         "AAAAAQAAAF9FcG9jaCBtZXRhZGF0YQoKU3RvcmVzIGFsbCBpbmZvcm1hdGlvbiBhYm91dCBhbiBlcG9jaCBpbmNsdWRpbmcgdGltaW5nLCBzdGFuZGluZ3MsIGFuZCByZXdhcmRzLgAAAAAAAAAACUVwb2NoSW5mbwAAAAAAAAcAAABBVW5peCB0aW1lc3RhbXAgd2hlbiB0aGlzIGVwb2NoIGVuZHMgKHN0YXJ0X3RpbWUgKyBlcG9jaF9kdXJhdGlvbikAAAAAAAAIZW5kX3RpbWUAAAAGAAAAKVRoZSBzZXF1ZW50aWFsIGVwb2NoIG51bWJlciAoc3RhcnRzIGF0IDApAAAAAAAADGVwb2NoX251bWJlcgAAAAQAAABeTWFwIG9mIGZhY3Rpb25faWQgLT4gdG90YWwgZnAgY29udHJpYnV0ZWQgYnkgYWxsIHBsYXllcnMKVXNlZCB0byBkZXRlcm1pbmUgdGhlIHdpbm5pbmcgZmFjdGlvbgAAAAAAEWZhY3Rpb25fc3RhbmRpbmdzAAAAAAAD7AAAAAQAAAALAAAAMFRydWUgaWYgZXBvY2ggaGFzIGJlZW4gZmluYWxpemVkIHZpYSBjeWNsZV9lcG9jaAAAAAxpc19maW5hbGl6ZWQAAAABAAAARVRvdGFsIFVTREMgYXZhaWxhYmxlIGZvciByZXdhcmQgZGlzdHJpYnV0aW9uIChzZXQgZHVyaW5nIGN5Y2xlX2Vwb2NoKQAAAAAAAAtyZXdhcmRfcG9vbAAAAAALAAAAJlVuaXggdGltZXN0YW1wIHdoZW4gdGhpcyBlcG9jaCBzdGFydGVkAAAAAAAKc3RhcnRfdGltZQAAAAAABgAAADNUaGUgd2lubmluZyBmYWN0aW9uIChOb25lIHVudGlsIGVwb2NoIGlzIGZpbmFsaXplZCkAAAAAD3dpbm5pbmdfZmFjdGlvbgAAAAPoAAAABA==",
@@ -1131,13 +987,7 @@ export class Client extends ContractClient {
         remove_game: this.txFromJSON<Result<void>>,
         update_config: this.txFromJSON<Result<void>>,
         select_faction: this.txFromJSON<Result<void>>,
-        get_reward_pool: this.txFromJSON<Result<i128>>,
         get_epoch_player: this.txFromJSON<Result<EpochUser>>,
-        is_faction_locked: this.txFromJSON<boolean>,
-        claim_epoch_reward: this.txFromJSON<Result<i128>>,
-        get_winning_faction: this.txFromJSON<Result<u32>>,
-        has_claimed_rewards: this.txFromJSON<boolean>,
-        get_claimable_amount: this.txFromJSON<i128>,
-        get_faction_standings: this.txFromJSON<Result<Map<u32, i128>>>
+        claim_epoch_reward: this.txFromJSON<Result<i128>>
   }
 }

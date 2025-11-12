@@ -16,7 +16,7 @@
 //! - Soroswap: DEX for BLND → USDC conversion
 //! - soroban-fixed-point-math: Safe fixed-point arithmetic
 
-use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Map, Vec};
+use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Vec};
 
 mod errors;
 mod events;
@@ -249,49 +249,6 @@ impl Blendizzard {
     }
 
     // ========================================================================
-    // Migration Functions
-    // ========================================================================
-
-    /// Migration 1: Transition epoch data from persistent to temporary storage
-    ///
-    /// This migration is required when upgrading from a version that stored
-    /// epochs in persistent storage to one that uses temporary storage.
-    ///
-    /// # What it does
-    /// - Checks if the current epoch exists in temporary storage
-    /// - If not, reinitializes it with current timestamp and config
-    /// - Idempotent: safe to call multiple times
-    ///
-    /// # Impact on other data
-    /// - **User** (persistent): Unaffected, preserved across migration
-    /// - **EpochUser** (temporary): Will be recreated when users play their first game
-    /// - **Session** (temporary): Old game sessions are lost (acceptable, they expire quickly)
-    /// - **Claimed** (temporary): Old reward claims are lost, but so are the old epochs
-    /// - **Game whitelist** (persistent): Unaffected, preserved across migration
-    ///
-    /// # Errors
-    /// * `NotAdmin` - If caller is not the admin
-    pub fn migration_1__(env: Env) -> Result<(), Error> {
-        let admin = storage::get_admin(&env);
-        admin.require_auth();
-
-        // Get current epoch number (stored in instance storage, unaffected by migration)
-        let current_epoch_num = storage::get_current_epoch(&env);
-
-        // Check if epoch already exists in temporary storage
-        if storage::get_epoch(&env, current_epoch_num).is_some() {
-            // Already migrated, nothing to do
-            return Ok(());
-        }
-
-        // Epoch doesn't exist in temporary storage, reinitialize it
-        let config = storage::get_config(&env);
-        epoch::initialize_first_epoch(&env, config.epoch_duration);
-
-        Ok(())
-    }
-
-    // ========================================================================
     // Game Registry
     // ========================================================================
 
@@ -371,11 +328,36 @@ impl Blendizzard {
     /// Returns complete epoch-specific data including locked faction, available/locked FP,
     /// total FP contributed, and balance snapshot.
     ///
+    /// **NEW BEHAVIOR:** If user hasn't played any games this epoch yet, calculates
+    /// what their FP WOULD be based on current vault balance without writing to storage.
+    /// This allows UIs to display FP before the user's first game.
+    ///
     /// # Errors
-    /// * `UserNotFound` - If user hasn't played any games in the current epoch
+    /// * `FactionNotSelected` - If user hasn't selected a faction yet
     pub fn get_epoch_player(env: Env, user: Address) -> Result<types::EpochUser, Error> {
         let current_epoch = storage::get_current_epoch(&env);
-        storage::get_epoch_user(&env, current_epoch, &user).ok_or(Error::UserNotFound)
+
+        // Try to get existing epoch user data
+        if let Some(epoch_user) = storage::get_epoch_user(&env, current_epoch, &user) {
+            return Ok(epoch_user);
+        }
+
+        // User hasn't played this epoch yet - calculate FP on-the-fly
+        // First, check if user has selected a faction
+        storage::get_user(&env, &user).ok_or(Error::FactionNotSelected)?;
+
+        // Calculate FP using same logic as initialize_player_epoch
+        let total_fp = faction_points::calculate_faction_points(&env, &user)?;
+        let current_balance = vault::get_vault_balance(&env, &user);
+
+        // Return computed EpochUser (not saved to storage yet)
+        Ok(types::EpochUser {
+            epoch_faction: None, // Faction not locked until first game
+            epoch_balance_snapshot: current_balance,
+            available_fp: total_fp,
+            locked_fp: 0,
+            total_fp_contributed: 0,
+        })
     }
 
     // ========================================================================
@@ -475,6 +457,9 @@ impl Blendizzard {
     /// Users who contributed FP to the winning faction can claim their share
     /// of the epoch's reward pool (USDC converted from BLND yield).
     ///
+    /// **Note:** To check claimable amounts or claim status before calling,
+    /// use transaction simulation. This is the idiomatic Soroban pattern.
+    ///
     /// # Returns
     /// Amount of USDC claimed
     ///
@@ -489,59 +474,6 @@ impl Blendizzard {
         rewards::claim_epoch_reward(&env, &user, epoch)
     }
 
-    /// Calculate how much a user would receive if they claimed now
-    ///
-    /// This doesn't actually claim, just calculates the amount.
-    /// Useful for UIs to show pending rewards.
-    ///
-    /// # Returns
-    /// Amount user would receive, or 0 if not eligible
-    pub fn get_claimable_amount(env: Env, user: Address, epoch: u32) -> i128 {
-        rewards::get_claimable_amount(&env, &user, epoch)
-    }
-
-    /// Check if user has claimed rewards for an epoch
-    pub fn has_claimed_rewards(env: Env, user: Address, epoch: u32) -> bool {
-        rewards::has_claimed_rewards(&env, &user, epoch)
-    }
-
-    // ========================================================================
-    // Additional Query Functions
-    // ========================================================================
-
-    /// Check if a user's faction is locked for the current epoch
-    ///
-    /// Once locked (after first game), faction cannot be changed until next epoch.
-    pub fn is_faction_locked(env: Env, user: Address) -> bool {
-        let current_epoch = storage::get_current_epoch(&env);
-        faction::is_faction_locked(&env, &user, current_epoch)
-    }
-
-    /// Get faction standings for a specific epoch
-    ///
-    /// Returns a map of faction ID to total faction points.
-    ///
-    /// # Errors
-    /// * `EpochNotFinalized` - If epoch doesn't exist
-    pub fn get_faction_standings(env: Env, epoch: u32) -> Result<Map<u32, i128>, Error> {
-        epoch::get_faction_standings(&env, epoch)
-    }
-
-    /// Get the winning faction for a finalized epoch
-    ///
-    /// # Errors
-    /// * `EpochNotFinalized` - If epoch doesn't exist or isn't finalized
-    pub fn get_winning_faction(env: Env, epoch: u32) -> Result<u32, Error> {
-        epoch::get_winning_faction(&env, epoch)
-    }
-
-    /// Get the reward pool (USDC) for a finalized epoch
-    ///
-    /// # Errors
-    /// * `EpochNotFinalized` - If epoch doesn't exist or isn't finalized
-    pub fn get_reward_pool(env: Env, epoch: u32) -> Result<i128, Error> {
-        epoch::get_reward_pool(&env, epoch)
-    }
 }
 
 // ============================================================================

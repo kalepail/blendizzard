@@ -154,42 +154,6 @@ fn test_admin_functions_work_when_paused() {
 // ============================================================================
 
 #[test]
-fn test_get_claimable_amount_before_epoch_finalized() {
-    let env = setup_test_env();
-    let (_game, _vault, _mock_vault, blendizzard, _usdc) = setup_complete_game_env(&env);
-
-    let user = Address::generate(&env);
-
-    // Current epoch (0) is not finalized yet
-    let claimable = blendizzard.get_claimable_amount(&user, &0);
-    assert_eq!(claimable, 0, "Should return 0 for unfinalized epoch");
-}
-
-#[test]
-fn test_get_claimable_amount_nonexistent_epoch() {
-    let env = setup_test_env();
-    let (_game, _vault, _mock_vault, blendizzard, _usdc) = setup_complete_game_env(&env);
-
-    let user = Address::generate(&env);
-
-    // Epoch 999 doesn't exist
-    let claimable = blendizzard.get_claimable_amount(&user, &999);
-    assert_eq!(claimable, 0, "Should return 0 for nonexistent epoch");
-}
-
-#[test]
-fn test_has_claimed_rewards_initially_false() {
-    let env = setup_test_env();
-    let (_game, _vault, _mock_vault, blendizzard, _usdc) = setup_complete_game_env(&env);
-
-    let user = Address::generate(&env);
-
-    // User hasn't claimed yet
-    assert!(!blendizzard.has_claimed_rewards(&user, &0));
-    assert!(!blendizzard.has_claimed_rewards(&user, &1));
-}
-
-#[test]
 fn test_claim_epoch_reward_before_epoch_finalized() {
     let env = setup_test_env();
     let (_game, _vault, _mock_vault, blendizzard, _usdc) = setup_complete_game_env(&env);
@@ -565,26 +529,44 @@ fn test_get_epoch_player_returns_defaults_before_first_game() {
     let player_data = blendizzard.get_player(&player);
     assert_eq!(player_data.selected_faction, 0);
 
-    // Epoch data should error (UserNotFound) because player hasn't played this epoch yet
-    let result = blendizzard.try_get_epoch_player(&player);
+    // NEW BEHAVIOR: Epoch data should now return computed FP even before first game
+    // This allows UIs to display FP without requiring a game interaction first
+    let epoch_data = blendizzard.get_epoch_player(&player);
+
+    // Should have calculated FP based on vault balance (1000 USDC)
     assert!(
-        result.is_err(),
-        "Should error when player hasn't played in epoch"
+        epoch_data.available_fp > 0,
+        "Should have calculated FP based on vault balance"
     );
+
+    // Should have balance snapshot
+    assert_eq!(epoch_data.epoch_balance_snapshot, 1000_0000000);
+
+    // Faction not locked yet (None indicates not locked)
+    assert_eq!(epoch_data.epoch_faction, None);
+
+    // No locked FP or contributions yet
+    assert_eq!(epoch_data.locked_fp, 0);
+    assert_eq!(epoch_data.total_fp_contributed, 0);
 }
 
 #[test]
-fn test_is_faction_locked_before_first_game() {
+fn test_get_epoch_player_errors_without_faction_selection() {
     let env = setup_test_env();
     let (_game, _vault, mock_vault, blendizzard, _usdc) = setup_complete_game_env(&env);
 
     let player = Address::generate(&env);
 
+    // User has vault balance but hasn't selected faction
     mock_vault.set_user_balance(&player, &1000_0000000);
-    blendizzard.select_faction(&player, &0);
 
-    // Faction should not be locked yet
-    assert!(!blendizzard.is_faction_locked(&player));
+    // Should error with FactionNotSelected (not UserNotFound)
+    let result = blendizzard.try_get_epoch_player(&player);
+    assert!(
+        result.is_err(),
+        "Should error when faction not selected"
+    );
+    // Note: Error code #16 is FactionNotSelected
 }
 
 #[test]
@@ -641,8 +623,9 @@ fn test_get_faction_standings() {
     };
     blendizzard.end_game(&game, &session, &proof, &outcome);
 
-    // Get faction standings for epoch 0
-    let standings = blendizzard.get_faction_standings(&0);
+    // Get faction standings for epoch 0 via get_epoch
+    let epoch = blendizzard.get_epoch(&Some(0));
+    let standings = epoch.faction_standings;
 
     // Faction 0 (WholeNoodle) should have player1's contribution
     assert_eq!(standings.get(0), Some(100_0000000));

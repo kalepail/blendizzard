@@ -781,6 +781,8 @@ fn test_full_epoch_cycle_with_rewards() {
             (player4.clone(), winner3 == player4),
         ];
 
+        let mut total_claimed = 0i128;
+
         for (player, _won_game) in players_and_winners.iter() {
             let player_epoch = blendizzard.get_epoch_player(&player);
             let player_faction = player_epoch.epoch_faction.unwrap();
@@ -802,13 +804,10 @@ fn test_full_epoch_cycle_with_rewards() {
                     "USDC balance should increase by claimed amount"
                 );
 
-                // Verify claim is recorded
-                assert!(
-                    blendizzard.has_claimed_rewards(&player, &0),
-                    "Claim should be recorded"
-                );
+                // Track total claimed for verification
+                total_claimed += claimed_amount;
 
-                // Verify can't claim twice
+                // Verify can't claim twice (this also verifies claim was recorded)
                 let double_claim_result = blendizzard.try_claim_epoch_reward(&player, &0);
                 assert!(
                     double_claim_result.is_err(),
@@ -822,39 +821,14 @@ fn test_full_epoch_cycle_with_rewards() {
         }
 
         // ========================================================================
-        // Step 8: Verify reward distribution math
+        // Step 8: Verify total claimed rewards don't exceed pool
         // ========================================================================
-
-        // Get winning faction's total FP
-        let winning_faction_fp = epoch0_final.faction_standings.get(winning_faction).unwrap();
-
-        // Calculate expected reward for each winner based on their contribution
-        // Reward = (player_contribution / faction_total_fp) * reward_pool
-        // We already verified above that players got rewards, here we just verify
-        // the total rewards don't exceed the pool
-
-        let total_claimed = {
-            let mut sum = 0i128;
-            for (player, _) in players_and_winners.iter() {
-                let player_epoch = blendizzard.get_epoch_player(&player);
-                if player_epoch.epoch_faction.unwrap() == winning_faction
-                    && player_epoch.total_fp_contributed > 0
-                {
-                    if blendizzard.has_claimed_rewards(&player, &0) {
-                        // Estimate what they got (we don't store it but can calculate)
-                        let player_share = (player_epoch.total_fp_contributed as i128
-                            * reward_pool)
-                            / winning_faction_fp as i128;
-                        sum += player_share;
-                    }
-                }
-            }
-            sum
-        };
 
         assert!(
             total_claimed <= reward_pool,
-            "Total claimed rewards should not exceed reward pool"
+            "Total claimed rewards ({}) should not exceed reward pool ({})",
+            total_claimed,
+            reward_pool
         );
     }
 

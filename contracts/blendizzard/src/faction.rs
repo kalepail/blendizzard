@@ -114,10 +114,3 @@ pub(crate) fn lock_epoch_faction(
 
     Ok(selected_faction)
 }
-
-/// Check if user's faction is locked for the current epoch
-pub(crate) fn is_faction_locked(env: &Env, user: &Address, epoch: u32) -> bool {
-    storage::get_epoch_user(env, epoch, user)
-        .and_then(|eu| eu.epoch_faction)
-        .is_some()
-}
