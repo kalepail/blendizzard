@@ -10,12 +10,10 @@
     "update:bindings": "ncu -u && for dir in bindings/*/; do (cd \"$dir\" && ncu -u); done",
     "install:bindings": "for dir in bindings/*/; do (cd \"$dir\" && bun install --force); done",
     "build:bindings": "for dir in bindings/*/; do (cd \"$dir\" && bun run build); done",
-    "bindings:all": "bun run update:bindings && bun run install:bindings && bun run build:bindings",
-    "migrate": "bun migrate-all.ts",
-    "migrate:dry-run": "echo 'Dry run mode - would migrate the following:' && bun migrate-all.ts --dry-run"
+    "bindings:all": "bun run update:bindings && bun run install:bindings && bun run build:bindings"
   },
   "dependencies": {
-    "@stellar/stellar-sdk": "^14.3.2",
+    "@stellar/stellar-sdk": "^14.3.1",
     "buffer": "^6.0.3",
     "blendizzard": "workspace:*",
     "fee-vault": "workspace:*",
