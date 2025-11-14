@@ -170,11 +170,26 @@ pub const SCALAR_7: i128 = 10_000_000;
 /// Fixed-point representation of 1.0 (with 7 decimals)
 pub const FIXED_POINT_ONE: i128 = SCALAR_7;
 
-/// Maximum amount for amount multiplier asymptote ($1,000 with 7 decimals)
-pub const MAX_AMOUNT_USD: i128 = 1000_0000000;
+/// Target deposit amount for peak multiplier ($1,000 with 7 decimals)
+pub const TARGET_AMOUNT_USD: i128 = 1000_0000000;
 
-/// Maximum time for time multiplier asymptote (30 days in seconds)
-pub const MAX_TIME_SECONDS: u64 = 30 * 24 * 60 * 60;
+/// Maximum deposit amount for multiplier calculation ($10,000 with 7 decimals)
+/// Beyond this amount, multiplier returns to 1.0x
+pub const MAX_AMOUNT_USD: i128 = 10_000_0000000;
+
+/// Target time held for peak multiplier (35 days in seconds)
+/// 35 days = 5 weeks
+pub const TARGET_TIME_SECONDS: u64 = 35 * 24 * 60 * 60;
+
+/// Maximum time held for multiplier calculation (245 days in seconds)
+/// 245 days = 35 weeks
+/// Beyond this time, multiplier returns to 1.0x
+pub const MAX_TIME_SECONDS: u64 = 245 * 24 * 60 * 60;
+
+/// Component peak multiplier (sqrt(6) with 7 decimals)
+/// Each component (amount, time) uses this peak so combined = 6.0x
+/// 2.449489743... ≈ 2.4494897
+pub const COMPONENT_PEAK: i128 = 2_4494897;
 
 /// Withdrawal threshold for deposit timestamp reset (50%)
 /// Represented as a percentage in fixed-point (0.5 = 50%)

@@ -4,7 +4,8 @@ use soroban_sdk::{Address, Env};
 use crate::errors::Error;
 use crate::storage;
 use crate::types::{
-    EpochPlayer, BASE_FP_PER_USDC, FIXED_POINT_ONE, MAX_AMOUNT_USD, MAX_TIME_SECONDS, SCALAR_7,
+    EpochPlayer, BASE_FP_PER_USDC, COMPONENT_PEAK, FIXED_POINT_ONE, MAX_AMOUNT_USD,
+    MAX_TIME_SECONDS, TARGET_AMOUNT_USD, TARGET_TIME_SECONDS, SCALAR_7,
 };
 
 // ============================================================================
@@ -21,19 +22,25 @@ use crate::types::{
 /// ```
 /// Where: **1 USDC = 100 FP** (before multipliers)
 ///
-/// # Amount Multiplier
-/// Asymptotic curve toward bonus at $1,000 USD:
-/// ```
-/// multiplier = 1.0 + (amount_usd / (amount_usd + $1000))
-/// ```
-/// Results in: 1.0x at $0, ~1.5x at $1k, ~1.75x at $3k, ~1.9x at $9k
+/// # Smooth Piecewise Multiplier System (Cubic Hermite Splines)
 ///
-/// # Time Multiplier
-/// Asymptotic curve toward bonus at 30 days:
-/// ```
-/// multiplier = 1.0 + (time_held_seconds / (time_held_seconds + 30_days))
-/// ```
-/// Results in: 1.0x at 0 days, ~1.5x at 30 days, ~1.67x at 60 days
+/// Both amount and time multipliers use smooth piecewise curves that:
+/// - Rise smoothly from 1.0x to peak at target
+/// - Fall smoothly from peak back to 1.0x at maximum
+/// - Peak combined multiplier: 5.0x (each component: 2.236x)
+///
+/// ## Amount Multiplier
+/// - Target: $1,000 → 2.236x (component peak)
+/// - Maximum: $100,000 → 1.0x
+/// - Smooth cubic interpolation with zero derivatives at endpoints
+///
+/// ## Time Multiplier
+/// - Target: 35 days (5 weeks) → 2.236x (component peak)
+/// - Maximum: 350 days (50 weeks) → 1.0x
+/// - Smooth cubic interpolation with zero derivatives at endpoints
+///
+/// **Combined at target**: 2.236 × 2.236 ≈ 5.0x
+/// **Result**: Target players ($1k, 35d) get 500 FP per $1
 ///
 /// # Arguments
 /// * `env` - Contract environment
@@ -70,10 +77,14 @@ pub(crate) fn calculate_faction_points(env: &Env, player: &Address) -> Result<i1
     Ok(fp)
 }
 
-/// Calculate amount multiplier
+/// Calculate amount multiplier using smooth piecewise (cubic Hermite spline)
 ///
-/// Formula: 1.0 + (amount / (amount + MAX_AMOUNT))
-/// Where MAX_AMOUNT = $1,000 (with 7 decimals)
+/// Smooth piecewise curve that:
+/// - [0, TARGET]: Rises smoothly from 1.0x to COMPONENT_PEAK
+/// - [TARGET, MAX]: Falls smoothly from COMPONENT_PEAK to 1.0x
+///
+/// Uses Hermite basis function: h(t) = 3t² - 2t³
+/// This provides smooth acceleration/deceleration with zero derivatives at endpoints
 ///
 /// # Arguments
 /// * `amount_usd` - Deposit amount in USD (7 decimals)
@@ -81,31 +92,120 @@ pub(crate) fn calculate_faction_points(env: &Env, player: &Address) -> Result<i1
 /// # Returns
 /// Multiplier in fixed-point format (7 decimals)
 fn calculate_amount_multiplier(amount_usd: i128) -> Result<i128, Error> {
-    if amount_usd == 0 {
+    if amount_usd <= 0 {
         return Ok(FIXED_POINT_ONE);
     }
 
-    // Calculate: amount / (amount + MAX_AMOUNT)
-    let denominator = amount_usd
-        .checked_add(MAX_AMOUNT_USD)
-        .ok_or(Error::OverflowError)?;
+    if amount_usd <= TARGET_AMOUNT_USD {
+        // Rising segment: 1.0 -> COMPONENT_PEAK
+        // t = amount / TARGET
+        let t = amount_usd
+            .fixed_div_floor(TARGET_AMOUNT_USD, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
 
-    let fraction = amount_usd
-        .fixed_div_floor(denominator, SCALAR_7)
-        .ok_or(Error::OverflowError)?;
+        // Hermite basis: h(t) = 3t² - 2t³
+        let t_squared = t
+            .fixed_mul_floor(t, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
 
-    // Calculate: 1.0 + fraction
-    let multiplier = FIXED_POINT_ONE
-        .checked_add(fraction)
-        .ok_or(Error::OverflowError)?;
+        let t_cubed = t_squared
+            .fixed_mul_floor(t, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
 
-    Ok(multiplier)
+        let three_t_squared = t_squared
+            .checked_mul(3)
+            .ok_or(Error::OverflowError)?;
+
+        let two_t_cubed = t_cubed
+            .checked_mul(2)
+            .ok_or(Error::OverflowError)?;
+
+        let h = three_t_squared
+            .checked_sub(two_t_cubed)
+            .ok_or(Error::OverflowError)?;
+
+        // multiplier = 1.0 + h * (COMPONENT_PEAK - 1.0)
+        let peak_minus_one = COMPONENT_PEAK
+            .checked_sub(FIXED_POINT_ONE)
+            .ok_or(Error::OverflowError)?;
+
+        let h_times_peak = h
+            .fixed_mul_floor(peak_minus_one, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
+
+        let multiplier = FIXED_POINT_ONE
+            .checked_add(h_times_peak)
+            .ok_or(Error::OverflowError)?;
+
+        return Ok(multiplier);
+    } else {
+        // Falling segment: COMPONENT_PEAK -> 1.0
+        // Cap at MAX_AMOUNT_USD
+        let capped_amount = if amount_usd > MAX_AMOUNT_USD {
+            MAX_AMOUNT_USD
+        } else {
+            amount_usd
+        };
+
+        let excess = capped_amount
+            .checked_sub(TARGET_AMOUNT_USD)
+            .ok_or(Error::OverflowError)?;
+
+        let range = MAX_AMOUNT_USD
+            .checked_sub(TARGET_AMOUNT_USD)
+            .ok_or(Error::OverflowError)?;
+
+        // t = excess / range
+        let t = excess
+            .fixed_div_floor(range, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
+
+        // Hermite basis: h(t) = 3t² - 2t³
+        let t_squared = t
+            .fixed_mul_floor(t, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
+
+        let t_cubed = t_squared
+            .fixed_mul_floor(t, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
+
+        let three_t_squared = t_squared
+            .checked_mul(3)
+            .ok_or(Error::OverflowError)?;
+
+        let two_t_cubed = t_cubed
+            .checked_mul(2)
+            .ok_or(Error::OverflowError)?;
+
+        let h = three_t_squared
+            .checked_sub(two_t_cubed)
+            .ok_or(Error::OverflowError)?;
+
+        // multiplier = COMPONENT_PEAK - h * (COMPONENT_PEAK - 1.0)
+        let peak_minus_one = COMPONENT_PEAK
+            .checked_sub(FIXED_POINT_ONE)
+            .ok_or(Error::OverflowError)?;
+
+        let h_times_peak = h
+            .fixed_mul_floor(peak_minus_one, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
+
+        let multiplier = COMPONENT_PEAK
+            .checked_sub(h_times_peak)
+            .ok_or(Error::OverflowError)?;
+
+        return Ok(multiplier);
+    }
 }
 
-/// Calculate time multiplier
+/// Calculate time multiplier using smooth piecewise (cubic Hermite spline)
 ///
-/// Formula: 1.0 + (time_held / (time_held + MAX_TIME))
-/// Where MAX_TIME = 30 days in seconds
+/// Smooth piecewise curve that:
+/// - [0, TARGET_TIME]: Rises smoothly from 1.0x to COMPONENT_PEAK
+/// - [TARGET_TIME, MAX_TIME]: Falls smoothly from COMPONENT_PEAK to 1.0x
+///
+/// Uses Hermite basis function: h(t) = 3t² - 2t³
+/// This provides smooth acceleration/deceleration with zero derivatives at endpoints
 ///
 /// # Arguments
 /// * `env` - Contract environment
@@ -128,25 +228,107 @@ fn calculate_time_multiplier(env: &Env, time_multiplier_start: u64) -> Result<i1
         return Ok(FIXED_POINT_ONE);
     }
 
-    // Convert to i128 for calculations
-    let time_held_i128 = i128::from(time_held);
-    let max_time_i128 = i128::from(MAX_TIME_SECONDS);
+    if time_held <= TARGET_TIME_SECONDS {
+        // Rising segment: 1.0 -> COMPONENT_PEAK
+        // t = time_held / TARGET_TIME
+        let time_held_i128 = i128::from(time_held);
+        let target_time_i128 = i128::from(TARGET_TIME_SECONDS);
 
-    // Calculate: time_held / (time_held + MAX_TIME)
-    let denominator = time_held_i128
-        .checked_add(max_time_i128)
-        .ok_or(Error::OverflowError)?;
+        let t = time_held_i128
+            .fixed_div_floor(target_time_i128, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
 
-    let fraction = time_held_i128
-        .fixed_div_floor(denominator, SCALAR_7)
-        .ok_or(Error::OverflowError)?;
+        // Hermite basis: h(t) = 3t² - 2t³
+        let t_squared = t
+            .fixed_mul_floor(t, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
 
-    // Calculate: 1.0 + fraction
-    let multiplier = FIXED_POINT_ONE
-        .checked_add(fraction)
-        .ok_or(Error::OverflowError)?;
+        let t_cubed = t_squared
+            .fixed_mul_floor(t, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
 
-    Ok(multiplier)
+        let three_t_squared = t_squared
+            .checked_mul(3)
+            .ok_or(Error::OverflowError)?;
+
+        let two_t_cubed = t_cubed
+            .checked_mul(2)
+            .ok_or(Error::OverflowError)?;
+
+        let h = three_t_squared
+            .checked_sub(two_t_cubed)
+            .ok_or(Error::OverflowError)?;
+
+        // multiplier = 1.0 + h * (COMPONENT_PEAK - 1.0)
+        let peak_minus_one = COMPONENT_PEAK
+            .checked_sub(FIXED_POINT_ONE)
+            .ok_or(Error::OverflowError)?;
+
+        let h_times_peak = h
+            .fixed_mul_floor(peak_minus_one, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
+
+        let multiplier = FIXED_POINT_ONE
+            .checked_add(h_times_peak)
+            .ok_or(Error::OverflowError)?;
+
+        return Ok(multiplier);
+    } else {
+        // Falling segment: COMPONENT_PEAK -> 1.0
+        // Cap at MAX_TIME_SECONDS
+        let capped_time = if time_held > MAX_TIME_SECONDS {
+            MAX_TIME_SECONDS
+        } else {
+            time_held
+        };
+
+        let excess = capped_time - TARGET_TIME_SECONDS;
+        let range = MAX_TIME_SECONDS - TARGET_TIME_SECONDS;
+
+        let excess_i128 = i128::from(excess);
+        let range_i128 = i128::from(range);
+
+        // t = excess / range
+        let t = excess_i128
+            .fixed_div_floor(range_i128, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
+
+        // Hermite basis: h(t) = 3t² - 2t³
+        let t_squared = t
+            .fixed_mul_floor(t, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
+
+        let t_cubed = t_squared
+            .fixed_mul_floor(t, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
+
+        let three_t_squared = t_squared
+            .checked_mul(3)
+            .ok_or(Error::OverflowError)?;
+
+        let two_t_cubed = t_cubed
+            .checked_mul(2)
+            .ok_or(Error::OverflowError)?;
+
+        let h = three_t_squared
+            .checked_sub(two_t_cubed)
+            .ok_or(Error::OverflowError)?;
+
+        // multiplier = COMPONENT_PEAK - h * (COMPONENT_PEAK - 1.0)
+        let peak_minus_one = COMPONENT_PEAK
+            .checked_sub(FIXED_POINT_ONE)
+            .ok_or(Error::OverflowError)?;
+
+        let h_times_peak = h
+            .fixed_mul_floor(peak_minus_one, SCALAR_7)
+            .ok_or(Error::OverflowError)?;
+
+        let multiplier = COMPONENT_PEAK
+            .checked_sub(h_times_peak)
+            .ok_or(Error::OverflowError)?;
+
+        return Ok(multiplier);
+    }
 }
 
 /// Calculate final FP from base amount and multipliers

@@ -41,35 +41,19 @@ export interface Game {
   player2: string;
   player2_guess: Option<u32>;
   player2_wager: i128;
-  status: GameStatus;
   winner: Option<string>;
   winning_number: Option<u32>;
 }
 
 export const Errors = {
   1: {message:"GameNotFound"},
-  2: {message:"GameAlreadyStarted"},
-  3: {message:"NotPlayer"},
-  4: {message:"AlreadyGuessed"},
-  5: {message:"BothPlayersNotGuessed"},
-  6: {message:"GameAlreadyEnded"},
-  7: {message:"NotInitialized"},
-  8: {message:"AlreadyInitialized"},
-  9: {message:"NotAdmin"}
+  2: {message:"NotPlayer"},
+  3: {message:"AlreadyGuessed"},
+  4: {message:"BothPlayersNotGuessed"},
+  5: {message:"GameAlreadyEnded"}
 }
 
 export type DataKey = {tag: "Game", values: readonly [u32]} | {tag: "BlendizzardAddress", values: void} | {tag: "Admin", values: void};
-
-export type GameStatus = {tag: "Active", values: void} | {tag: "Ended", values: void};
-
-
-export interface GameOutcome {
-  game_id: string;
-  player1: string;
-  player2: string;
-  session_id: u32;
-  winner: boolean;
-}
 
 export interface Client {
   /**
@@ -78,9 +62,6 @@ export interface Client {
    * 
    * # Arguments
    * * `new_wasm_hash` - The hash of the new WASM binary
-   * 
-   * # Errors
-   * * `NotAdmin` - If caller is not the admin
    */
   upgrade: ({new_wasm_hash}: {new_wasm_hash: Buffer}, options?: {
     /**
@@ -97,7 +78,7 @@ export interface Client {
      * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
      */
     simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  }) => Promise<AssembledTransaction<null>>
 
   /**
    * Construct and simulate a get_game transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -148,7 +129,7 @@ export interface Client {
      * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
      */
     simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<string>>>
+  }) => Promise<AssembledTransaction<string>>
 
   /**
    * Construct and simulate a set_admin transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -156,9 +137,6 @@ export interface Client {
    * 
    * # Arguments
    * * `new_admin` - The new admin address
-   * 
-   * # Errors
-   * * `NotAdmin` - If caller is not the current admin
    */
   set_admin: ({new_admin}: {new_admin: string}, options?: {
     /**
@@ -175,7 +153,7 @@ export interface Client {
      * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
      */
     simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  }) => Promise<AssembledTransaction<null>>
 
   /**
    * Construct and simulate a make_guess transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -287,7 +265,7 @@ export interface Client {
      * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
      */
     simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<string>>>
+  }) => Promise<AssembledTransaction<string>>
 
   /**
    * Construct and simulate a set_blendizzard transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -295,9 +273,6 @@ export interface Client {
    * 
    * # Arguments
    * * `new_blendizzard` - The new Blendizzard contract address
-   * 
-   * # Errors
-   * * `NotAdmin` - If caller is not the admin
    */
   set_blendizzard: ({new_blendizzard}: {new_blendizzard: string}, options?: {
     /**
@@ -314,7 +289,7 @@ export interface Client {
      * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
      */
     simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  }) => Promise<AssembledTransaction<null>>
 
 }
 export class Client extends ContractClient {
@@ -336,33 +311,31 @@ export class Client extends ContractClient {
   }
   constructor(public readonly options: ContractClientOptions) {
     super(
-      new ContractSpec([ "AAAAAQAAAAAAAAAAAAAABEdhbWUAAAAJAAAAAAAAAAdwbGF5ZXIxAAAAABMAAAAAAAAADXBsYXllcjFfZ3Vlc3MAAAAAAAPoAAAABAAAAAAAAAANcGxheWVyMV93YWdlcgAAAAAAAAsAAAAAAAAAB3BsYXllcjIAAAAAEwAAAAAAAAANcGxheWVyMl9ndWVzcwAAAAAAA+gAAAAEAAAAAAAAAA1wbGF5ZXIyX3dhZ2VyAAAAAAAACwAAAAAAAAAGc3RhdHVzAAAAAAfQAAAACkdhbWVTdGF0dXMAAAAAAAAAAAAGd2lubmVyAAAAAAPoAAAAEwAAAAAAAAAOd2lubmluZ19udW1iZXIAAAAAA+gAAAAE",
-        "AAAABAAAAAAAAAAAAAAABUVycm9yAAAAAAAACQAAAAAAAAAMR2FtZU5vdEZvdW5kAAAAAQAAAAAAAAASR2FtZUFscmVhZHlTdGFydGVkAAAAAAACAAAAAAAAAAlOb3RQbGF5ZXIAAAAAAAADAAAAAAAAAA5BbHJlYWR5R3Vlc3NlZAAAAAAABAAAAAAAAAAVQm90aFBsYXllcnNOb3RHdWVzc2VkAAAAAAAABQAAAAAAAAAQR2FtZUFscmVhZHlFbmRlZAAAAAYAAAAAAAAADk5vdEluaXRpYWxpemVkAAAAAAAHAAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAgAAAAAAAAACE5vdEFkbWluAAAACQ==",
+      new ContractSpec([ "AAAAAQAAAAAAAAAAAAAABEdhbWUAAAAIAAAAAAAAAAdwbGF5ZXIxAAAAABMAAAAAAAAADXBsYXllcjFfZ3Vlc3MAAAAAAAPoAAAABAAAAAAAAAANcGxheWVyMV93YWdlcgAAAAAAAAsAAAAAAAAAB3BsYXllcjIAAAAAEwAAAAAAAAANcGxheWVyMl9ndWVzcwAAAAAAA+gAAAAEAAAAAAAAAA1wbGF5ZXIyX3dhZ2VyAAAAAAAACwAAAAAAAAAGd2lubmVyAAAAAAPoAAAAEwAAAAAAAAAOd2lubmluZ19udW1iZXIAAAAAA+gAAAAE",
+        "AAAABAAAAAAAAAAAAAAABUVycm9yAAAAAAAABQAAAAAAAAAMR2FtZU5vdEZvdW5kAAAAAQAAAAAAAAAJTm90UGxheWVyAAAAAAAAAgAAAAAAAAAOQWxyZWFkeUd1ZXNzZWQAAAAAAAMAAAAAAAAAFUJvdGhQbGF5ZXJzTm90R3Vlc3NlZAAAAAAAAAQAAAAAAAAAEEdhbWVBbHJlYWR5RW5kZWQAAAAF",
         "AAAAAgAAAAAAAAAAAAAAB0RhdGFLZXkAAAAAAwAAAAEAAAAAAAAABEdhbWUAAAABAAAABAAAAAAAAAAAAAAAEkJsZW5kaXp6YXJkQWRkcmVzcwAAAAAAAAAAAAAAAAAFQWRtaW4AAAA=",
-        "AAAAAgAAAAAAAAAAAAAACkdhbWVTdGF0dXMAAAAAAAIAAAAAAAAAAAAAAAZBY3RpdmUAAAAAAAAAAAAAAAAABUVuZGVkAAAA",
-        "AAAAAQAAAAAAAAAAAAAAC0dhbWVPdXRjb21lAAAAAAUAAAAAAAAAB2dhbWVfaWQAAAAAEwAAAAAAAAAHcGxheWVyMQAAAAATAAAAAAAAAAdwbGF5ZXIyAAAAABMAAAAAAAAACnNlc3Npb25faWQAAAAAAAQAAAAAAAAABndpbm5lcgAAAAAAAQ==",
-        "AAAAAAAAAKVVcGRhdGUgdGhlIGNvbnRyYWN0IFdBU00gaGFzaCAodXBncmFkZSBjb250cmFjdCkKCiMgQXJndW1lbnRzCiogYG5ld193YXNtX2hhc2hgIC0gVGhlIGhhc2ggb2YgdGhlIG5ldyBXQVNNIGJpbmFyeQoKIyBFcnJvcnMKKiBgTm90QWRtaW5gIC0gSWYgY2FsbGVyIGlzIG5vdCB0aGUgYWRtaW4AAAAAAAAHdXBncmFkZQAAAAABAAAAAAAAAA1uZXdfd2FzbV9oYXNoAAAAAAAD7gAAACAAAAABAAAD6QAAA+0AAAAAAAAAAw==",
+        "AAAAAAAAAHFVcGRhdGUgdGhlIGNvbnRyYWN0IFdBU00gaGFzaCAodXBncmFkZSBjb250cmFjdCkKCiMgQXJndW1lbnRzCiogYG5ld193YXNtX2hhc2hgIC0gVGhlIGhhc2ggb2YgdGhlIG5ldyBXQVNNIGJpbmFyeQAAAAAAAAd1cGdyYWRlAAAAAAEAAAAAAAAADW5ld193YXNtX2hhc2gAAAAAAAPuAAAAIAAAAAA=",
         "AAAAAAAAAJ1HZXQgZ2FtZSBpbmZvcm1hdGlvbi4KCiMgQXJndW1lbnRzCiogYHNlc3Npb25faWRgIC0gVGhlIHNlc3Npb24gSUQgb2YgdGhlIGdhbWUKCiMgUmV0dXJucwoqIGBHYW1lYCAtIFRoZSBnYW1lIHN0YXRlIChpbmNsdWRlcyB3aW5uaW5nIG51bWJlciBhZnRlciBnYW1lIGVuZHMpAAAAAAAACGdldF9nYW1lAAAAAQAAAAAAAAAKc2Vzc2lvbl9pZAAAAAAABAAAAAEAAAPpAAAH0AAAAARHYW1lAAAAAw==",
-        "AAAAAAAAAEhHZXQgdGhlIGN1cnJlbnQgYWRtaW4gYWRkcmVzcwoKIyBSZXR1cm5zCiogYEFkZHJlc3NgIC0gVGhlIGFkbWluIGFkZHJlc3MAAAAJZ2V0X2FkbWluAAAAAAAAAAAAAAEAAAPpAAAAEwAAAAM=",
-        "AAAAAAAAAIZTZXQgYSBuZXcgYWRtaW4gYWRkcmVzcwoKIyBBcmd1bWVudHMKKiBgbmV3X2FkbWluYCAtIFRoZSBuZXcgYWRtaW4gYWRkcmVzcwoKIyBFcnJvcnMKKiBgTm90QWRtaW5gIC0gSWYgY2FsbGVyIGlzIG5vdCB0aGUgY3VycmVudCBhZG1pbgAAAAAACXNldF9hZG1pbgAAAAAAAAEAAAAAAAAACW5ld19hZG1pbgAAAAAAABMAAAABAAAD6QAAA+0AAAAAAAAAAw==",
+        "AAAAAAAAAEhHZXQgdGhlIGN1cnJlbnQgYWRtaW4gYWRkcmVzcwoKIyBSZXR1cm5zCiogYEFkZHJlc3NgIC0gVGhlIGFkbWluIGFkZHJlc3MAAAAJZ2V0X2FkbWluAAAAAAAAAAAAAAEAAAAT",
+        "AAAAAAAAAEpTZXQgYSBuZXcgYWRtaW4gYWRkcmVzcwoKIyBBcmd1bWVudHMKKiBgbmV3X2FkbWluYCAtIFRoZSBuZXcgYWRtaW4gYWRkcmVzcwAAAAAACXNldF9hZG1pbgAAAAAAAAEAAAAAAAAACW5ld19hZG1pbgAAAAAAABMAAAAA",
         "AAAAAAAAAOJNYWtlIGEgZ3Vlc3MgZm9yIHRoZSBjdXJyZW50IGdhbWUuClBsYXllcnMgY2FuIGd1ZXNzIGEgbnVtYmVyIGJldHdlZW4gMSBhbmQgMTAuCgojIEFyZ3VtZW50cwoqIGBzZXNzaW9uX2lkYCAtIFRoZSBzZXNzaW9uIElEIG9mIHRoZSBnYW1lCiogYHBsYXllcmAgLSBBZGRyZXNzIG9mIHRoZSBwbGF5ZXIgbWFraW5nIHRoZSBndWVzcwoqIGBndWVzc2AgLSBUaGUgZ3Vlc3NlZCBudW1iZXIgKDEtMTApAAAAAAAKbWFrZV9ndWVzcwAAAAAAAwAAAAAAAAAKc2Vzc2lvbl9pZAAAAAAABAAAAAAAAAAGcGxheWVyAAAAAAATAAAAAAAAAAVndWVzcwAAAAAAAAQAAAABAAAD6QAAA+0AAAAAAAAAAw==",
         "AAAAAAAAAhlTdGFydCBhIG5ldyBnYW1lIGJldHdlZW4gdHdvIHBsYXllcnMgd2l0aCBGUCB3YWdlcnMuClRoaXMgY3JlYXRlcyBhIHNlc3Npb24gaW4gQmxlbmRpenphcmQgYW5kIGxvY2tzIEZQIGJlZm9yZSBzdGFydGluZyB0aGUgZ2FtZS4KCioqQ1JJVElDQUw6KiogVGhpcyBtZXRob2QgcmVxdWlyZXMgYXV0aG9yaXphdGlvbiBmcm9tIFRISVMgY29udHJhY3QgKG5vdCBwbGF5ZXJzKS4KQmxlbmRpenphcmQgd2lsbCBjYWxsIGBnYW1lX2lkLnJlcXVpcmVfYXV0aCgpYCB3aGljaCBjaGVja3MgdGhpcyBjb250cmFjdCdzIGFkZHJlc3MuCgojIEFyZ3VtZW50cwoqIGBzZXNzaW9uX2lkYCAtIFVuaXF1ZSBzZXNzaW9uIGlkZW50aWZpZXIgKHUzMikKKiBgcGxheWVyMWAgLSBBZGRyZXNzIG9mIGZpcnN0IHBsYXllcgoqIGBwbGF5ZXIyYCAtIEFkZHJlc3Mgb2Ygc2Vjb25kIHBsYXllcgoqIGBwbGF5ZXIxX3dhZ2VyYCAtIEZQIGFtb3VudCBwbGF5ZXIxIGlzIHdhZ2VyaW5nCiogYHBsYXllcjJfd2FnZXJgIC0gRlAgYW1vdW50IHBsYXllcjIgaXMgd2FnZXJpbmcAAAAAAAAKc3RhcnRfZ2FtZQAAAAAABQAAAAAAAAAKc2Vzc2lvbl9pZAAAAAAABAAAAAAAAAAHcGxheWVyMQAAAAATAAAAAAAAAAdwbGF5ZXIyAAAAABMAAAAAAAAADXBsYXllcjFfd2FnZXIAAAAAAAALAAAAAAAAAA1wbGF5ZXIyX3dhZ2VyAAAAAAAACwAAAAEAAAPpAAAD7QAAAAAAAAAD",
         "AAAAAAAAAK5Jbml0aWFsaXplIHRoZSBjb250cmFjdCB3aXRoIEJsZW5kaXp6YXJkIGFkZHJlc3MgYW5kIGFkbWluCgojIEFyZ3VtZW50cwoqIGBhZG1pbmAgLSBBZG1pbiBhZGRyZXNzIChjYW4gdXBncmFkZSBjb250cmFjdCkKKiBgYmxlbmRpenphcmRgIC0gQWRkcmVzcyBvZiB0aGUgQmxlbmRpenphcmQgY29udHJhY3QAAAAAAA1fX2NvbnN0cnVjdG9yAAAAAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAtibGVuZGl6emFyZAAAAAATAAAAAA==",
         "AAAAAAAAAT9SZXZlYWwgdGhlIHdpbm5lciBvZiB0aGUgZ2FtZSBhbmQgc3VibWl0IG91dGNvbWUgdG8gQmxlbmRpenphcmQuCkNhbiBvbmx5IGJlIGNhbGxlZCBhZnRlciBib3RoIHBsYXllcnMgaGF2ZSBtYWRlIHRoZWlyIGd1ZXNzZXMuClRoaXMgZ2VuZXJhdGVzIHRoZSB3aW5uaW5nIG51bWJlciwgZGV0ZXJtaW5lcyB0aGUgd2lubmVyLCBhbmQgZW5kcyB0aGUgc2Vzc2lvbi4KCiMgQXJndW1lbnRzCiogYHNlc3Npb25faWRgIC0gVGhlIHNlc3Npb24gSUQgb2YgdGhlIGdhbWUKCiMgUmV0dXJucwoqIGBBZGRyZXNzYCAtIEFkZHJlc3Mgb2YgdGhlIHdpbm5pbmcgcGxheWVyAAAAAA1yZXZlYWxfd2lubmVyAAAAAAAAAQAAAAAAAAAKc2Vzc2lvbl9pZAAAAAAABAAAAAEAAAPpAAAAEwAAAAM=",
-        "AAAAAAAAAGZHZXQgdGhlIGN1cnJlbnQgQmxlbmRpenphcmQgY29udHJhY3QgYWRkcmVzcwoKIyBSZXR1cm5zCiogYEFkZHJlc3NgIC0gVGhlIEJsZW5kaXp6YXJkIGNvbnRyYWN0IGFkZHJlc3MAAAAAAA9nZXRfYmxlbmRpenphcmQAAAAAAAAAAAEAAAPpAAAAEwAAAAM=",
-        "AAAAAAAAAKJTZXQgYSBuZXcgQmxlbmRpenphcmQgY29udHJhY3QgYWRkcmVzcwoKIyBBcmd1bWVudHMKKiBgbmV3X2JsZW5kaXp6YXJkYCAtIFRoZSBuZXcgQmxlbmRpenphcmQgY29udHJhY3QgYWRkcmVzcwoKIyBFcnJvcnMKKiBgTm90QWRtaW5gIC0gSWYgY2FsbGVyIGlzIG5vdCB0aGUgYWRtaW4AAAAAAA9zZXRfYmxlbmRpenphcmQAAAAAAQAAAAAAAAAPbmV3X2JsZW5kaXp6YXJkAAAAABMAAAABAAAD6QAAA+0AAAAAAAAAAw==" ]),
+        "AAAAAAAAAGZHZXQgdGhlIGN1cnJlbnQgQmxlbmRpenphcmQgY29udHJhY3QgYWRkcmVzcwoKIyBSZXR1cm5zCiogYEFkZHJlc3NgIC0gVGhlIEJsZW5kaXp6YXJkIGNvbnRyYWN0IGFkZHJlc3MAAAAAAA9nZXRfYmxlbmRpenphcmQAAAAAAAAAAAEAAAAT",
+        "AAAAAAAAAG5TZXQgYSBuZXcgQmxlbmRpenphcmQgY29udHJhY3QgYWRkcmVzcwoKIyBBcmd1bWVudHMKKiBgbmV3X2JsZW5kaXp6YXJkYCAtIFRoZSBuZXcgQmxlbmRpenphcmQgY29udHJhY3QgYWRkcmVzcwAAAAAAD3NldF9ibGVuZGl6emFyZAAAAAABAAAAAAAAAA9uZXdfYmxlbmRpenphcmQAAAAAEwAAAAA=" ]),
       options
     )
   }
   public readonly fromJSON = {
-    upgrade: this.txFromJSON<Result<void>>,
+    upgrade: this.txFromJSON<null>,
         get_game: this.txFromJSON<Result<Game>>,
-        get_admin: this.txFromJSON<Result<string>>,
-        set_admin: this.txFromJSON<Result<void>>,
+        get_admin: this.txFromJSON<string>,
+        set_admin: this.txFromJSON<null>,
         make_guess: this.txFromJSON<Result<void>>,
         start_game: this.txFromJSON<Result<void>>,
         reveal_winner: this.txFromJSON<Result<string>>,
-        get_blendizzard: this.txFromJSON<Result<string>>,
-        set_blendizzard: this.txFromJSON<Result<void>>
+        get_blendizzard: this.txFromJSON<string>,
+        set_blendizzard: this.txFromJSON<null>
   }
 }

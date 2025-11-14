@@ -308,13 +308,15 @@ fn test_fp_calculation_rounds_down() {
     let total_fp = epoch_player.available_fp;
 
     // With BASE_FP_PER_USDC = 100, FP should be at least base × 100
-    // But the multipliers should reduce it slightly due to floor rounding
-    // FP = (333_0000000 × 100) × amount_mult × time_mult - wager
-    // = 33,300_0000000 × amount_mult × time_mult - 100_0000000
-    // With small deposit and short time, multipliers are close to 1.0x
+    // With smooth piecewise multipliers:
+    // - $333 deposit (< $1k target): amount_mult ≈ 1.0-1.5x (rising curve)
+    // - 7777 seconds ≈ 2.2 hours (very short): time_mult ≈ 1.0x
+    // FP = (333 × 100) × ~1.2 × 1.0 - 100 USDC wager ≈ 33,300 × 1.2 - 100 ≈ 39,860 - 100
+    //
+    // After locking wager, available_fp should be positive and > base
     assert!(
         total_fp > 333_0000000,
-        "FP should be greater than base (due to 100x multiplier)"
+        "FP should be greater than base (due to 100x multiplier and >1.0 amount mult)"
     );
     assert!(total_fp > 0, "FP should still be positive");
 
