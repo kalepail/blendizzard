@@ -27,6 +27,7 @@ export function Dashboard({ playerNumber, onLogout }: DashboardProps) {
   const [isGameActive, setIsGameActive] = useState(false);
   const [addressCopied, setAddressCopied] = useState(false);
   const [standingsRefresh, setStandingsRefresh] = useState(0);
+  const [usdcRefreshTrigger, setUsdcRefreshTrigger] = useState(0);
   const [showFactionSwitcher, setShowFactionSwitcher] = useState(false);
   const [switchingFaction, setSwitchingFaction] = useState(false);
   const [xlmBalance, setXlmBalance] = useState<bigint>(0n);
@@ -227,6 +228,9 @@ export function Dashboard({ playerNumber, onLogout }: DashboardProps) {
 
       // Trigger faction standings refresh
       setStandingsRefresh(prev => prev + 1);
+
+      // Trigger USDC balance refresh in VaultQuickActions
+      setUsdcRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     }
@@ -408,7 +412,7 @@ export function Dashboard({ playerNumber, onLogout }: DashboardProps) {
             </div>
           </div>
 
-          <VaultQuickActions userAddress={userAddress} onSuccess={loadDashboardData} />
+          <VaultQuickActions userAddress={userAddress} onSuccess={loadDashboardData} refreshTrigger={usdcRefreshTrigger} />
         </div>
 
         {/* Main Content */}

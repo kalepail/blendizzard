@@ -8,9 +8,10 @@ import { USDC_DECIMALS } from '@/utils/constants';
 interface VaultQuickActionsProps {
   userAddress: string;
   onSuccess: () => void;
+  refreshTrigger?: number;
 }
 
-export function VaultQuickActions({ userAddress, onSuccess }: VaultQuickActionsProps) {
+export function VaultQuickActions({ userAddress, onSuccess, refreshTrigger = 0 }: VaultQuickActionsProps) {
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +43,7 @@ export function VaultQuickActions({ userAddress, onSuccess }: VaultQuickActionsP
     return () => {
       abortController.abort();
     };
-  }, [userAddress]);
+  }, [userAddress, refreshTrigger]);
 
   const loadBalance = async () => {
     // Invalidate cache to force fresh data after transactions
