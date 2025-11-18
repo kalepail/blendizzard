@@ -11,6 +11,8 @@ mod math_rounding_tests;
 mod number_guess_integration;
 mod reward_and_pause_tests;
 mod reward_edge_cases_tests;
+mod reward_vault_deposit_simple_test;
+mod reward_vault_deposit_test;
 mod smoke;
 pub(crate) mod soroswap_utils;
 pub(crate) mod testutils;

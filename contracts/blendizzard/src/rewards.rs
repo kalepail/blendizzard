@@ -3,6 +3,7 @@ use soroban_sdk::{Address, Env};
 
 use crate::errors::Error;
 use crate::events::emit_rewards_claimed;
+use crate::fee_vault_v2::Client as FeeVaultClient;
 use crate::storage;
 use crate::types::SCALAR_7;
 
@@ -15,6 +16,16 @@ use crate::types::SCALAR_7;
 /// Players who contributed FP to the winning faction can claim their share
 /// of the epoch's reward pool (USDC converted from BLND yield).
 ///
+/// **Important:** The reward is automatically deposited into the fee-vault on behalf
+/// of the player, not transferred directly. This means:
+/// 1. USDC is transferred from contract → player
+/// 2. Vault deposit is called, transferring USDC from player → fee-vault
+/// 3. Player receives vault shares representing their deposit
+///
+/// The player must authorize BOTH actions in their transaction:
+/// - Authorization for `blendizzard.claim_epoch_reward()`
+/// - Authorization for `fee_vault.deposit()`
+///
 /// Formula:
 /// ```
 /// player_reward = (player_fp_contributed / total_winning_faction_fp) * reward_pool
@@ -26,7 +37,7 @@ use crate::types::SCALAR_7;
 /// * `epoch` - Epoch number to claim from
 ///
 /// # Returns
-/// Amount of USDC claimed
+/// Amount of USDC claimed and deposited into fee-vault
 ///
 /// # Errors
 /// * `EpochNotFinalized` - If epoch doesn't exist or isn't finalized
@@ -98,10 +109,17 @@ pub(crate) fn claim_epoch_reward(env: &Env, player: &Address, epoch: u32) -> Res
     // Mark as claimed
     storage::set_claimed(env, player, epoch);
 
-    // Transfer USDC to player
+    // Transfer USDC to player, then deposit into fee-vault
     let config = storage::get_config(env);
     let usdc_client = soroban_sdk::token::Client::new(env, &config.usdc_token);
+
+    // Step 1: Transfer USDC from contract to player
     usdc_client.transfer(&env.current_contract_address(), player, &reward_amount);
+
+    // Step 2: Deposit into fee-vault on behalf of player
+    // Note: Player must authorize both the claim AND the vault deposit in their transaction
+    let vault_client = FeeVaultClient::new(env, &config.fee_vault);
+    let _shares_minted = vault_client.deposit(player, &reward_amount);
 
     // Emit event
     emit_rewards_claimed(env, player, epoch, player_faction, reward_amount);
