@@ -24,7 +24,7 @@ export function getWalletSigner(publicKey: string): ContractSigner {
 
       return {
         ...result,
-        signedAuthEntry: Buffer.from(Buffer.from(result.signedAuthEntry, 'base64').toString('utf8'), 'base64').toString('base64')
+        signedAuthEntry: result.signedAuthEntry,
       }
     },
   };

@@ -1,9 +1,5 @@
-import {
-  StellarWalletsKit,
-  WalletNetwork,
-  allowAllModules,
-} from '@creit.tech/stellar-wallets-kit';
-import type { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
+import { StellarWalletsKit, Networks, KitEventType } from '@creit-tech/stellar-wallets-kit';
+import { sep43Modules } from '@creit-tech/stellar-wallets-kit/modules/utils';
 import { NETWORK, NETWORK_PASSPHRASE } from '@/utils/constants';
 
 export interface WalletDetails {
@@ -14,39 +10,38 @@ export interface WalletDetails {
 }
 
 /**
- * Wallet service using Stellar Wallets Kit
+ * Wallet service using Stellar Wallets Kit v2
  * Supports multiple wallets (Freighter, xBull, Albedo, etc.)
  */
 export class WalletService {
-  private kit: StellarWalletsKit | null = null;
+  private initialized = false;
   private selectedWalletId: string | null = null;
 
   /**
-   * Initialize the Stellar Wallets Kit
+   * Initialize the Stellar Wallets Kit (v2 uses static API)
    */
-  private async initKit() {
-    if (this.kit) return this.kit;
+  private initKit() {
+    if (this.initialized) return;
 
-    // Convert NETWORK to WalletNetwork enum
-    const network = NETWORK.toLowerCase() === 'testnet' ? WalletNetwork.TESTNET : WalletNetwork.PUBLIC;
+    // Convert NETWORK string to Networks enum value (network passphrase)
+    const network = NETWORK.toLowerCase() === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
 
-    this.kit = new StellarWalletsKit({
+    StellarWalletsKit.init({
       network,
       selectedWalletId: this.selectedWalletId || undefined,
-      modules: allowAllModules(),
+      modules: sep43Modules(),
     });
 
-    return this.kit;
+    this.initialized = true;
   }
 
   /**
-   * Get the kit instance
+   * Ensure kit is initialized before use
    */
-  async getKit(): Promise<StellarWalletsKit> {
-    if (!this.kit) {
-      await this.initKit();
+  private ensureInitialized() {
+    if (!this.initialized) {
+      this.initKit();
     }
-    return this.kit!;
   }
 
   /**
@@ -54,38 +49,33 @@ export class WalletService {
    * Returns the selected wallet details
    */
   async openModal(): Promise<WalletDetails> {
-    const kit = await this.getKit();
+    this.ensureInitialized();
 
-    return new Promise((resolve, reject) => {
-      kit.openModal({
-        onWalletSelected: async (option: ISupportedWallet) => {
-          try {
-            await kit.setWallet(option.id);
-            this.selectedWalletId = option.id;
-
-            const { address } = await kit.getAddress();
-
-            resolve({
-              address,
-              walletId: option.id,
-              network: NETWORK,
-              networkPassphrase: NETWORK_PASSPHRASE,
-            });
-          } catch (error) {
-            reject(error);
-          }
-        },
-        onClosed: (err?: Error) => {
-          if (err) {
-            reject(err);
-          } else {
-            reject(new Error('Wallet selection cancelled'));
-          }
-        },
-        modalTitle: 'Connect Your Wallet',
-        notAvailableText: 'No wallets available. Please install a Stellar wallet.',
-      });
+    // Set up event listener before opening modal
+    let walletId: string | undefined;
+    const unsubscribe = StellarWalletsKit.on(KitEventType.WALLET_SELECTED, (event) => {
+      walletId = event.payload.id;
+      this.selectedWalletId = event.payload.id || null;
     });
+
+    try {
+      // v2 uses authModal() which handles wallet selection and address retrieval
+      const { address } = await StellarWalletsKit.authModal();
+
+      // Clean up listener
+      unsubscribe();
+
+      return {
+        address,
+        walletId: walletId || this.selectedWalletId || 'unknown',
+        network: NETWORK,
+        networkPassphrase: NETWORK_PASSPHRASE,
+      };
+    } catch (error) {
+      // Clean up listener on error
+      unsubscribe();
+      throw error;
+    }
   }
 
   /**
@@ -93,13 +83,13 @@ export class WalletService {
    * Used for reconnecting on page reload
    */
   async connectWithWalletId(walletId: string): Promise<string> {
-    const kit = await this.getKit();
+    this.ensureInitialized();
 
     try {
-      await kit.setWallet(walletId);
+      StellarWalletsKit.setWallet(walletId);
       this.selectedWalletId = walletId;
 
-      const { address } = await kit.getAddress();
+      const { address } = await StellarWalletsKit.getAddress();
       return address;
     } catch (error) {
       console.error('Error reconnecting wallet:', error);
@@ -109,17 +99,17 @@ export class WalletService {
 
   /**
    * Sign a transaction XDR
-   * Returns { signedTxXdr: string, signerAddress?: string, error?: WalletError }
+   * Returns { signedTxXdr: string, signerAddress?: string }
    */
   async signTransaction(xdr: string, opts?: { address?: string }) {
-    if (!this.kit) {
-      throw new Error('Wallet not initialized. Please connect first.');
+    this.ensureInitialized();
+
+    if (!this.selectedWalletId) {
+      throw new Error('Wallet not connected. Please connect first.');
     }
 
     try {
-      // Return the full response object from the kit
-      // The SDK expects at minimum { signedTxXdr: string }
-      return await this.kit.signTransaction(xdr, {
+      return await StellarWalletsKit.signTransaction(xdr, {
         networkPassphrase: NETWORK_PASSPHRASE,
         address: opts?.address,
       });
@@ -131,23 +121,23 @@ export class WalletService {
 
   /**
    * Sign an auth entry (for Soroban contracts)
-   * Returns { signedAuthEntry: string, signerAddress?: string } to match the contract.ClientOptions interface
+   * Returns { signedAuthEntry: string, signerAddress?: string }
    *
-   * NOTE: stellar-wallets-kit already converts Freighter's Buffer response to base64 string
+   * NOTE: stellar-wallets-kit v2 already converts Freighter's Buffer response to base64 string
    */
   async signAuthEntry(authEntry: string, opts?: { address?: string }) {
-    if (!this.kit) {
-      throw new Error('Wallet not initialized. Please connect first.');
+    this.ensureInitialized();
+
+    if (!this.selectedWalletId) {
+      throw new Error('Wallet not connected. Please connect first.');
     }
 
     try {
-      const result = await this.kit.signAuthEntry(authEntry, {
+      const result = await StellarWalletsKit.signAuthEntry(authEntry, {
         networkPassphrase: NETWORK_PASSPHRASE,
         address: opts?.address,
       });
 
-      // stellar-wallets-kit already handles the conversion from Buffer to base64
-      // Just return the result as-is
       return {
         signedAuthEntry: result.signedAuthEntry,
         signerAddress: result.signerAddress,
@@ -181,15 +171,13 @@ export class WalletService {
    * Disconnect the wallet
    */
   async disconnect(): Promise<void> {
-    if (this.kit) {
-      // Some wallet modules support disconnect
+    if (this.initialized && this.selectedWalletId) {
       try {
-        await this.kit.disconnect?.();
+        await StellarWalletsKit.disconnect();
       } catch (error) {
         console.warn('Wallet disconnect not supported or failed:', error);
       }
     }
-    this.kit = null;
     this.selectedWalletId = null;
   }
 

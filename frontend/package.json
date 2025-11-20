@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@creit.tech/stellar-wallets-kit": "^1.9.5",
+    "@creit-tech/stellar-wallets-kit": "jsr:2.0.0-beta.6",
     "@headlessui/react": "^2.2.9",
     "@stellar/freighter-api": "^5.0.0",
     "@stellar/stellar-sdk": "^14.3.3",
