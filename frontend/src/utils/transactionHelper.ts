@@ -1,7 +1,7 @@
-import { rpc, contract, TransactionBuilder } from '@stellar/stellar-sdk';
+import { rpc, contract, TransactionBuilder, Transaction } from '@stellar/stellar-sdk';
 import { launchtubeService } from '@/services/launchtubeService';
 import { useTurnstileStore } from '@/store/turnstileSlice';
-import { RPC_URL } from './constants';
+import { NETWORK_PASSPHRASE, RPC_URL } from './constants';
 
 /**
  * AssembledTransaction type from stellar-sdk
@@ -52,7 +52,7 @@ export async function signAndSendViaLaunchtube(
   const resourceFee = tx.simulationData.transactionData.resourceFee().toString();
 
   // Rebuild the transaction with the fee set to exactly the resource fee
-  tx.built = TransactionBuilder.cloneFrom(tx.built, {
+  tx.built = TransactionBuilder.cloneFrom(new Transaction(tx.built.toXDR(), NETWORK_PASSPHRASE), {
     fee: resourceFee,
     sorobanData: tx.simulationData.transactionData,
   }).build();
