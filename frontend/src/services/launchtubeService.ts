@@ -66,7 +66,7 @@ export class LaunchtubeService {
       const formData = new FormData();
       formData.append('xdr', signedTxXdr);
 
-      const response = await fetch(`${this.baseUrl}/v2`, {
+      const response = await fetch(`${this.baseUrl}`, {
         method: 'POST',
         headers: this.buildHeaders(turnstileToken),
         body: formData,

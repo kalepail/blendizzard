@@ -21,7 +21,7 @@ export const BLND_TOKEN = import.meta.env.VITE_BLND_TOKEN;
 export const SOROSWAP_ROUTER = import.meta.env.VITE_SOROSWAP_ROUTER;
 
 // Launchtube configuration
-export const LAUNCHTUBE_URL = import.meta.env.VITE_LAUNCHTUBE_URL || 'http://launchtube.xyz';
+export const LAUNCHTUBE_URL = import.meta.env.VITE_LAUNCHTUBE_URL || 'http://launchtube.xyz/v2';
 export const LAUNCHTUBE_JWT = import.meta.env.VITE_LAUNCHTUBE_JWT;
 
 // Cloudflare Turnstile
