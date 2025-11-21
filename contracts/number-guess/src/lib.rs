@@ -10,8 +10,7 @@
 //! Blendizzard contract. Games cannot be started or completed without FP involvement.
 
 use soroban_sdk::{
-    contract, contractclient, contracterror, contractimpl, contracttype, Address, Bytes, BytesN,
-    Env,
+    Address, Bytes, BytesN, Env, IntoVal, contract, contractclient, contracterror, contractimpl, contracttype, vec
 };
 
 // Import Blendizzard contract interface
@@ -135,8 +134,8 @@ impl NumberGuessContract {
         player2_wager: i128,
     ) -> Result<(), Error> {
         // Require authentication from both players (they consent to wagering FP)
-        player1.require_auth();
-        player2.require_auth();
+        player1.require_auth_for_args(vec![&env, session_id.into_val(&env), player1_wager.into_val(&env)]);
+        player2.require_auth_for_args(vec![&env, session_id.into_val(&env), player2_wager.into_val(&env)]);
 
         // Get Blendizzard address
         let blendizzard_addr: Address = env

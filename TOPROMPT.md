@@ -1,3 +1,6 @@
+* Have authentry signatures be valid for 1 hr
+* Make a switch to sharing signed auth entries now that those signatures only sign for your own player, session and wager amount
+
 MAYBE
 * Consider having loser fp added to winners faction_fp
 * Consider having loser fp added to winners available_fp

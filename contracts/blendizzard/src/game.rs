@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{Address, Env, IntoVal as _, vec};
 
 use crate::errors::Error;
 use crate::events::{emit_game_ended, emit_game_started};
@@ -128,8 +128,8 @@ pub(crate) fn start_game(
     }
 
     // Authenticate players (for their consent to lock FP)
-    player1.require_auth();
-    player2.require_auth();
+    player1.require_auth_for_args(vec![&env, game_id.to_val(), session_id.into_val(env), player1_wager.into_val(env)]);
+    player2.require_auth_for_args(vec![&env, game_id.to_val(), session_id.into_val(env), player2_wager.into_val(env)]);
 
     // CRITICAL: Validate both players have explicitly selected a faction
     // This check must happen BEFORE any other initialization logic
