@@ -1,7 +1,8 @@
 import { Client as NumberGuessClient, type Game } from 'number-guess';
-import { GAME_CONTRACT, NETWORK_PASSPHRASE, RPC_URL, DEFAULT_METHOD_OPTIONS } from '@/utils/constants';
+import { GAME_CONTRACT, NETWORK_PASSPHRASE, RPC_URL, DEFAULT_METHOD_OPTIONS, DEFAULT_AUTH_TTL_MINUTES, MULTI_SIG_AUTH_TTL_MINUTES } from '@/utils/constants';
 import { contract, TransactionBuilder, StrKey } from '@stellar/stellar-sdk';
 import { signAndSendViaLaunchtube } from '@/utils/transactionHelper';
+import { calculateValidUntilLedger } from '@/utils/ledgerUtils';
 
 type ClientOptions = contract.ClientOptions;
 
@@ -56,7 +57,8 @@ export class NumberGuessService {
     player2: string,
     player1Wager: bigint,
     player2Wager: bigint,
-    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>
+    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>,
+    authTtlMinutes?: number
   ) {
     const client = this.createSigningClient(player1, signer);
     const tx = await client.start_game({
@@ -66,7 +68,12 @@ export class NumberGuessService {
       player1_wager: player1Wager,
       player2_wager: player2Wager,
     }, DEFAULT_METHOD_OPTIONS);
-    const { result } = await signAndSendViaLaunchtube(tx);
+
+    const validUntilLedgerSeq = authTtlMinutes
+      ? await calculateValidUntilLedger(RPC_URL, authTtlMinutes)
+      : await calculateValidUntilLedger(RPC_URL, DEFAULT_AUTH_TTL_MINUTES);
+
+    const { result } = await signAndSendViaLaunchtube(tx, DEFAULT_METHOD_OPTIONS.timeoutInSeconds, validUntilLedgerSeq);
     return result;
   }
 
@@ -77,6 +84,8 @@ export class NumberGuessService {
    * - Player 1 signs their part (likely auth entry since they're not the source)
    * - Returns partially-signed XDR for Player 2 to import and complete
    *
+   * Uses extended TTL (60 minutes) for multi-sig flow to allow time for both players to sign
+   *
    * Based on pattern from stellar-sdk swap.test.ts multi-auth flow
    */
   async prepareStartGame(
@@ -85,7 +94,8 @@ export class NumberGuessService {
     player2: string,
     player1Wager: bigint,
     player2Wager: bigint,
-    player1Signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>
+    player1Signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>,
+    authTtlMinutes?: number
   ): Promise<string> {
     // Step 1: Build transaction with Player 2 as the source
     // Use a client without signer just for building
@@ -112,9 +122,14 @@ export class NumberGuessService {
     const needsSigning = await player1Tx.needsNonInvokerSigningBy();
     console.log('Accounts that need to sign auth entries:', needsSigning);
 
+    // Calculate extended TTL for multi-sig flow
+    const validUntilLedgerSeq = authTtlMinutes
+      ? await calculateValidUntilLedger(RPC_URL, authTtlMinutes)
+      : await calculateValidUntilLedger(RPC_URL, MULTI_SIG_AUTH_TTL_MINUTES);
+
     // Player 1 signs if they're in the needsSigning list
     if (needsSigning.includes(player1)) {
-      await player1Tx.signAuthEntries();
+      await player1Tx.signAuthEntries({ expiration: validUntilLedgerSeq });
     }
 
     // Export partially-signed XDR for Player 2
@@ -129,12 +144,15 @@ export class NumberGuessService {
    *   (authorization comes from source_account credential)
    * - Returns updated XDR or original if no signing needed
    *
+   * Uses extended TTL (60 minutes) for multi-sig flow to allow time for both players to sign
+   *
    * Player 2 should review session ID and wager amounts before signing
    */
   async importAndSignAuthEntry(
     xdr: string,
     player2Address: string,
-    player2Signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>
+    player2Signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>,
+    authTtlMinutes?: number
   ): Promise<string> {
     const client = this.createSigningClient(player2Address, player2Signer);
 
@@ -145,9 +163,14 @@ export class NumberGuessService {
     const needsSigning = await tx.needsNonInvokerSigningBy();
     console.log('Accounts that still need to sign auth entries:', needsSigning);
 
+    // Calculate extended TTL for multi-sig flow (should match prepareStartGame)
+    const validUntilLedgerSeq = authTtlMinutes
+      ? await calculateValidUntilLedger(RPC_URL, authTtlMinutes)
+      : await calculateValidUntilLedger(RPC_URL, MULTI_SIG_AUTH_TTL_MINUTES);
+
     // Player 2 signs their auth entry only if they're in the needsSigning list
     if (needsSigning.includes(player2Address)) {
-      await tx.signAuthEntries();
+      await tx.signAuthEntries({ expiration: validUntilLedgerSeq });
     }
 
     // Export updated XDR
@@ -165,7 +188,8 @@ export class NumberGuessService {
   async finalizeStartGame(
     xdr: string,
     signerAddress: string,
-    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>
+    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>,
+    authTtlMinutes?: number
   ) {
     const client = this.createSigningClient(signerAddress, signer);
 
@@ -176,8 +200,12 @@ export class NumberGuessService {
     // This updates the transaction with the signed auth entries
     await tx.simulate();
 
+    const validUntilLedgerSeq = authTtlMinutes
+      ? await calculateValidUntilLedger(RPC_URL, authTtlMinutes)
+      : await calculateValidUntilLedger(RPC_URL, DEFAULT_AUTH_TTL_MINUTES);
+
     // Sign the transaction envelope and submit
-    const { result } = await signAndSendViaLaunchtube(tx);
+    const { result } = await signAndSendViaLaunchtube(tx, DEFAULT_METHOD_OPTIONS.timeoutInSeconds, validUntilLedgerSeq);
     return result;
   }
 
@@ -291,7 +319,8 @@ export class NumberGuessService {
     sessionId: number,
     playerAddress: string,
     guess: number,
-    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>
+    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>,
+    authTtlMinutes?: number
   ) {
     if (guess < 1 || guess > 10) {
       throw new Error('Guess must be between 1 and 10');
@@ -307,8 +336,12 @@ export class NumberGuessService {
     // Simulate to ensure proper footprint
     await tx.simulate();
 
+    const validUntilLedgerSeq = authTtlMinutes
+      ? await calculateValidUntilLedger(RPC_URL, authTtlMinutes)
+      : await calculateValidUntilLedger(RPC_URL, DEFAULT_AUTH_TTL_MINUTES);
+
     try {
-      const sentTx = await signAndSendViaLaunchtube(tx);
+      const sentTx = await signAndSendViaLaunchtube(tx, DEFAULT_METHOD_OPTIONS.timeoutInSeconds, validUntilLedgerSeq);
 
       if (sentTx.getTransactionResponse?.status === 'FAILED') {
         const errorMessage = this.extractErrorFromDiagnostics(sentTx.getTransactionResponse);
@@ -330,7 +363,8 @@ export class NumberGuessService {
   async revealWinner(
     sessionId: number,
     callerAddress: string,
-    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>
+    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>,
+    authTtlMinutes?: number
   ) {
     const client = this.createSigningClient(callerAddress, signer);
     const tx = await client.reveal_winner({ session_id: sessionId }, DEFAULT_METHOD_OPTIONS);
@@ -339,8 +373,12 @@ export class NumberGuessService {
     // The reveal_winner function calls blendizzard.end_game() which accesses EpochPlayer data
     await tx.simulate();
 
+    const validUntilLedgerSeq = authTtlMinutes
+      ? await calculateValidUntilLedger(RPC_URL, authTtlMinutes)
+      : await calculateValidUntilLedger(RPC_URL, DEFAULT_AUTH_TTL_MINUTES);
+
     try {
-      const sentTx = await signAndSendViaLaunchtube(tx);
+      const sentTx = await signAndSendViaLaunchtube(tx, DEFAULT_METHOD_OPTIONS.timeoutInSeconds, validUntilLedgerSeq);
 
       // Check transaction status before accessing result
       if (sentTx.getTransactionResponse?.status === 'FAILED') {

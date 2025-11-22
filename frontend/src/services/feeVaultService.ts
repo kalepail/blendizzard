@@ -1,7 +1,8 @@
 import { Client as FeeVaultClient } from 'fee-vault';
-import { VAULT_CONTRACT, NETWORK_PASSPHRASE, RPC_URL, DEFAULT_METHOD_OPTIONS } from '@/utils/constants';
+import { VAULT_CONTRACT, NETWORK_PASSPHRASE, RPC_URL, DEFAULT_METHOD_OPTIONS, DEFAULT_AUTH_TTL_MINUTES } from '@/utils/constants';
 import { contract } from '@stellar/stellar-sdk';
 import { signAndSendViaLaunchtube } from '@/utils/transactionHelper';
+import { calculateValidUntilLedger } from '@/utils/ledgerUtils';
 
 type ClientOptions = contract.ClientOptions;
 
@@ -80,11 +81,17 @@ export class FeeVaultService {
   async deposit(
     userAddress: string,
     amount: bigint,
-    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>
+    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>,
+    authTtlMinutes?: number
   ) {
     const client = this.createSigningClient(userAddress, signer);
     const tx = await client.deposit({ user: userAddress, amount }, DEFAULT_METHOD_OPTIONS);
-    const { result } = await signAndSendViaLaunchtube(tx);
+
+    const validUntilLedgerSeq = authTtlMinutes
+      ? await calculateValidUntilLedger(RPC_URL, authTtlMinutes)
+      : await calculateValidUntilLedger(RPC_URL, DEFAULT_AUTH_TTL_MINUTES);
+
+    const { result } = await signAndSendViaLaunchtube(tx, DEFAULT_METHOD_OPTIONS.timeoutInSeconds, validUntilLedgerSeq);
     return result;
   }
 
@@ -95,11 +102,17 @@ export class FeeVaultService {
   async withdraw(
     userAddress: string,
     amount: bigint,
-    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>
+    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>,
+    authTtlMinutes?: number
   ) {
     const client = this.createSigningClient(userAddress, signer);
     const tx = await client.withdraw({ user: userAddress, amount }, DEFAULT_METHOD_OPTIONS);
-    const { result } = await signAndSendViaLaunchtube(tx);
+
+    const validUntilLedgerSeq = authTtlMinutes
+      ? await calculateValidUntilLedger(RPC_URL, authTtlMinutes)
+      : await calculateValidUntilLedger(RPC_URL, DEFAULT_AUTH_TTL_MINUTES);
+
+    const { result } = await signAndSendViaLaunchtube(tx, DEFAULT_METHOD_OPTIONS.timeoutInSeconds, validUntilLedgerSeq);
     return result;
   }
 }

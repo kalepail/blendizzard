@@ -1,7 +1,8 @@
 import { Client as BlendizzardClient } from 'blendizzard';
-import { BLENDIZZARD_CONTRACT, NETWORK_PASSPHRASE, RPC_URL, DEFAULT_METHOD_OPTIONS } from '@/utils/constants';
+import { BLENDIZZARD_CONTRACT, NETWORK_PASSPHRASE, RPC_URL, DEFAULT_METHOD_OPTIONS, DEFAULT_AUTH_TTL_MINUTES } from '@/utils/constants';
 import { contract } from '@stellar/stellar-sdk';
 import { signAndSendViaLaunchtube } from '@/utils/transactionHelper';
+import { calculateValidUntilLedger } from '@/utils/ledgerUtils';
 
 type ClientOptions = contract.ClientOptions;
 
@@ -91,14 +92,20 @@ export class BlendizzardService {
   async selectFaction(
     playerAddress: string,
     factionId: number,
-    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>
+    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>,
+    authTtlMinutes?: number
   ) {
     const client = this.createSigningClient(playerAddress, signer);
     const tx = await client.select_faction({
       player: playerAddress,
       faction: factionId,
     }, DEFAULT_METHOD_OPTIONS);
-    const { result } = await signAndSendViaLaunchtube(tx);
+
+    const validUntilLedgerSeq = authTtlMinutes
+      ? await calculateValidUntilLedger(RPC_URL, authTtlMinutes)
+      : await calculateValidUntilLedger(RPC_URL, DEFAULT_AUTH_TTL_MINUTES);
+
+    const { result } = await signAndSendViaLaunchtube(tx, DEFAULT_METHOD_OPTIONS.timeoutInSeconds, validUntilLedgerSeq);
     return result;
   }
 
@@ -113,7 +120,8 @@ export class BlendizzardService {
     player2: string,
     player1Wager: bigint,
     player2Wager: bigint,
-    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>
+    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>,
+    authTtlMinutes?: number
   ) {
     const client = this.createSigningClient(player1, signer);
     const tx = await client.start_game({
@@ -124,7 +132,12 @@ export class BlendizzardService {
       player1_wager: player1Wager,
       player2_wager: player2Wager,
     }, DEFAULT_METHOD_OPTIONS);
-    const { result } = await signAndSendViaLaunchtube(tx);
+
+    const validUntilLedgerSeq = authTtlMinutes
+      ? await calculateValidUntilLedger(RPC_URL, authTtlMinutes)
+      : await calculateValidUntilLedger(RPC_URL, DEFAULT_AUTH_TTL_MINUTES);
+
+    const { result } = await signAndSendViaLaunchtube(tx, DEFAULT_METHOD_OPTIONS.timeoutInSeconds, validUntilLedgerSeq);
     return result;
   }
 
@@ -135,7 +148,8 @@ export class BlendizzardService {
   async claimEpochReward(
     playerAddress: string,
     epochNumber: number,
-    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>
+    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>,
+    authTtlMinutes?: number
   ): Promise<bigint> {
     try {
       const client = this.createSigningClient(playerAddress, signer);
@@ -147,7 +161,11 @@ export class BlendizzardService {
       // Simulate to ensure proper footprint
       await tx.simulate();
 
-      const sentTx = await signAndSendViaLaunchtube(tx);
+      const validUntilLedgerSeq = authTtlMinutes
+        ? await calculateValidUntilLedger(RPC_URL, authTtlMinutes)
+        : await calculateValidUntilLedger(RPC_URL, DEFAULT_AUTH_TTL_MINUTES);
+
+      const sentTx = await signAndSendViaLaunchtube(tx, DEFAULT_METHOD_OPTIONS.timeoutInSeconds, validUntilLedgerSeq);
 
       // Check transaction status before accessing result
       if (sentTx.getTransactionResponse?.status === 'FAILED') {
@@ -241,7 +259,8 @@ export class BlendizzardService {
    */
   async cycleEpoch(
     playerAddress: string,
-    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>
+    signer: Pick<contract.ClientOptions, 'signTransaction' | 'signAuthEntry'>,
+    authTtlMinutes?: number
   ): Promise<number> {
     const client = this.createSigningClient(playerAddress, signer);
     const tx = await client.cycle_epoch(DEFAULT_METHOD_OPTIONS);
@@ -249,8 +268,12 @@ export class BlendizzardService {
     // Simulate to ensure proper footprint
     await tx.simulate();
 
+    const validUntilLedgerSeq = authTtlMinutes
+      ? await calculateValidUntilLedger(RPC_URL, authTtlMinutes)
+      : await calculateValidUntilLedger(RPC_URL, DEFAULT_AUTH_TTL_MINUTES);
+
     try {
-      const sentTx = await signAndSendViaLaunchtube(tx);
+      const sentTx = await signAndSendViaLaunchtube(tx, DEFAULT_METHOD_OPTIONS.timeoutInSeconds, validUntilLedgerSeq);
 
       // Check transaction status before accessing result
       if (sentTx.getTransactionResponse?.status === 'FAILED') {

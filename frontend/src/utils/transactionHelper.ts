@@ -31,11 +31,13 @@ interface SignAndSendResult {
  *
  * @param tx - The assembled transaction to sign and send
  * @param timeoutSeconds - Maximum time to wait for confirmation (default: 30s)
+ * @param validUntilLedgerSeq - Optional ledger sequence until which auth signatures are valid
  * @returns Result object matching signAndSend() format
  */
 export async function signAndSendViaLaunchtube(
   tx: AssembledTransaction,
-  timeoutSeconds = 30
+  timeoutSeconds = 30,
+  validUntilLedgerSeq?: number
 ): Promise<SignAndSendResult> {
   // 1. Ensure transaction is simulated (this builds it)
   if (!tx.built) {
@@ -50,7 +52,12 @@ export async function signAndSendViaLaunchtube(
   const userAddress = tx.options.publicKey || tx.options.address;
   if (needsAuthSigning.length > 0 && needsAuthSigning.includes(userAddress)) {
     console.log('[signAndSendViaLaunchtube] Signing auth entries for user:', userAddress);
-    await tx.signAuthEntries();
+    if (validUntilLedgerSeq) {
+      console.log('[signAndSendViaLaunchtube] Using expiration ledger:', validUntilLedgerSeq);
+      await tx.signAuthEntries({ expiration: validUntilLedgerSeq });
+    } else {
+      await tx.signAuthEntries();
+    }
   }
 
   // 4. CRITICAL FIX: Rebuild transaction with correct fee

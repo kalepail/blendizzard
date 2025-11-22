@@ -80,6 +80,12 @@ export const DEFAULT_METHOD_OPTIONS = {
   timeoutInSeconds: 30,
 } as const;
 
+// Authorization entry TTL settings
+// Controls how long authorization signatures remain valid (in minutes)
+export const DEFAULT_AUTH_TTL_MINUTES = 10; // Standard operations (10 minutes)
+export const MULTI_SIG_AUTH_TTL_MINUTES = 60; // Multi-step flows (1 hour)
+export const EXTENDED_AUTH_TTL_MINUTES = 120; // Extended sessions (2 hours)
+
 // UI constants
 export const MIN_TOUCH_TARGET = 44; // Minimum touch target size in pixels
 export const NOTIFICATION_DURATION = 5000; // 5 seconds
