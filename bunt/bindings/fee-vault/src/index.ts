@@ -18,8 +18,6 @@ import type {
   u256,
   i256,
   Option,
-  Typepoint,
-  Duration,
 } from '@stellar/stellar-sdk/contract';
 export * from '@stellar/stellar-sdk'
 export * as contract from '@stellar/stellar-sdk/contract'
