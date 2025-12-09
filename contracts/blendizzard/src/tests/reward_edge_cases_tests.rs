@@ -80,7 +80,9 @@ fn setup_reward_test_env<'a>(
         reserve_token_ids,
     );
 
-    blendizzard.add_game(&game_contract);
+    // Add game to whitelist (with developer address)
+    let developer = Address::generate(env);
+    blendizzard.add_game(&game_contract, &developer);
 
     (
         game_contract,

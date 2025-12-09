@@ -410,41 +410,56 @@ pub(crate) fn initialize_epoch_fp(
     Ok(total_fp)
 }
 
-/// Lock faction points for a game
+/// Prepare a player for a game: lock faction + lock FP (single read/write for efficiency)
 ///
-/// Moves FP from available to locked.
+/// Combines faction locking and FP locking into a single storage operation.
+/// Returns the updated EpochPlayer for event emission (avoids another read).
 ///
 /// # Arguments
 /// * `env` - Contract environment
-/// * `player` - Player whose FP to lock
-/// * `amount` - Amount of FP to lock
+/// * `player` - Player to prepare
+/// * `wager` - Amount of FP to lock for this game
 /// * `current_epoch` - Current epoch number
 ///
+/// # Returns
+/// Updated EpochPlayer (for event emission without re-reading)
+///
 /// # Errors
-/// * `PlayerNotFound` - If player doesn't exist
+/// * `FactionNotSelected` - If player hasn't selected a faction
+/// * `PlayerNotFound` - If player has no epoch data
 /// * `InsufficientFactionPoints` - If player doesn't have enough available FP
-pub(crate) fn lock_fp(
+pub(crate) fn prepare_player_for_game(
     env: &Env,
     player: &Address,
-    amount: i128,
+    wager: i128,
     current_epoch: u32,
-) -> Result<(), Error> {
+) -> Result<EpochPlayer, Error> {
+    // Get player's selected faction (single read of Player)
+    let player_data = storage::get_player(env, player).ok_or(Error::FactionNotSelected)?;
+    let selected_faction = player_data.selected_faction;
+
+    // Get epoch player data (single read of EpochPlayer)
     let mut epoch_player =
         storage::get_epoch_player(env, current_epoch, player).ok_or(Error::PlayerNotFound)?;
 
+    // Lock faction if not already locked
+    if epoch_player.epoch_faction.is_none() {
+        epoch_player.epoch_faction = Some(selected_faction);
+    }
+
     // Check if player has enough available FP
-    if epoch_player.available_fp < amount {
+    if epoch_player.available_fp < wager {
         return Err(Error::InsufficientFactionPoints);
     }
 
-    // Subtract FP from available (wager is now tracked in GameSession)
+    // Subtract FP from available
     epoch_player.available_fp = epoch_player
         .available_fp
-        .checked_sub(amount)
+        .checked_sub(wager)
         .ok_or(Error::OverflowError)?;
 
-    // Save epoch player data
+    // Save epoch player data (single write)
     storage::set_epoch_player(env, current_epoch, player, &epoch_player);
 
-    Ok(())
+    Ok(epoch_player)
 }

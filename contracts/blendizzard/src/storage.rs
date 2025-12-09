@@ -1,6 +1,6 @@
 use soroban_sdk::{contracttype, Address, Env};
 
-use crate::types::{Config, EpochInfo, EpochPlayer, GameSession, Player};
+use crate::types::{Config, EpochGame, EpochInfo, EpochPlayer, GameInfo, GameSession, Player};
 
 // ============================================================================
 // Storage Keys
@@ -39,11 +39,17 @@ pub enum DataKey {
     /// Game session data - Session(session_id) -> GameSession (Temporary storage)
     Session(u32),
 
-    /// Whitelisted game contracts - Game(game_address) -> bool (Persistent storage)
+    /// Registered game contracts - Game(game_address) -> GameInfo (Persistent storage)
     Game(Address),
+
+    /// Per-epoch game contribution - EpochGame(epoch_number, game_address) -> EpochGame (Temporary storage)
+    EpochGame(u32, Address),
 
     /// Reward claim tracking - Claimed(player_address, epoch_number) -> bool (Temporary storage)
     Claimed(Address, u32),
+
+    /// Developer reward claim tracking - DevClaimed(game_address, epoch_number) -> bool (Temporary storage)
+    DevClaimed(Address, u32),
 }
 
 // ============================================================================
@@ -170,38 +176,58 @@ pub(crate) fn has_session(env: &Env, session_id: u32) -> bool {
     env.storage().temporary().has(&DataKey::Session(session_id))
 }
 
-/// Check if a game contract is whitelisted
-pub(crate) fn is_game_whitelisted(env: &Env, game_id: &Address) -> bool {
-    env.storage()
-        .persistent()
-        .get(&DataKey::Game(game_id.clone()))
-        .unwrap_or(false)
+/// Get game registration info
+pub(crate) fn get_game_info(env: &Env, game_id: &Address) -> Option<GameInfo> {
+    let key = DataKey::Game(game_id.clone());
+    let result = env.storage().persistent().get(&key);
+    if result.is_some() {
+        extend_game_ttl(env, game_id);
+    }
+    result
 }
 
-/// Add a game to the whitelist
-pub(crate) fn add_game_to_whitelist(env: &Env, game_id: &Address) {
+/// Set game registration info
+pub(crate) fn set_game_info(env: &Env, game_id: &Address, info: &GameInfo) {
     env.storage()
         .persistent()
-        .set(&DataKey::Game(game_id.clone()), &true);
+        .set(&DataKey::Game(game_id.clone()), info);
+    extend_game_ttl(env, game_id);
 }
 
-/// Remove a game from the whitelist
-pub(crate) fn remove_game_from_whitelist(env: &Env, game_id: &Address) {
+/// Check if a game contract is registered (replaces is_game_whitelisted)
+pub(crate) fn is_game_registered(env: &Env, game_id: &Address) -> bool {
+    get_game_info(env, game_id).is_some()
+}
+
+/// Remove game registration
+pub(crate) fn remove_game_info(env: &Env, game_id: &Address) {
     env.storage()
         .persistent()
         .remove(&DataKey::Game(game_id.clone()));
 }
 
+/// Get per-epoch game contribution data
+pub(crate) fn get_epoch_game(env: &Env, epoch: u32, game_id: &Address) -> Option<EpochGame> {
+    let key = DataKey::EpochGame(epoch, game_id.clone());
+    let result = env.storage().temporary().get(&key);
+    if result.is_some() {
+        extend_epoch_game_ttl(env, epoch, game_id);
+    }
+    result
+}
+
+/// Set per-epoch game contribution data
+pub(crate) fn set_epoch_game(env: &Env, epoch: u32, game_id: &Address, data: &EpochGame) {
+    let key = DataKey::EpochGame(epoch, game_id.clone());
+    env.storage().temporary().set(&key, data);
+    extend_epoch_game_ttl(env, epoch, game_id);
+}
+
 /// Check if player has claimed rewards for an epoch
 pub(crate) fn has_claimed(env: &Env, player: &Address, epoch: u32) -> bool {
-    let key = DataKey::Claimed(player.clone(), epoch);
-    let result: Option<bool> = env.storage().temporary().get(&key);
-    if let Some(true) = result {
-        extend_claimed_ttl(env, player, epoch);
-        true
-    } else {
-        false
-    }
+    env.storage()
+        .temporary()
+        .has(&DataKey::Claimed(player.clone(), epoch))
 }
 
 /// Mark rewards as claimed for player and epoch
@@ -209,6 +235,20 @@ pub(crate) fn set_claimed(env: &Env, player: &Address, epoch: u32) {
     let key = DataKey::Claimed(player.clone(), epoch);
     env.storage().temporary().set(&key, &true);
     extend_claimed_ttl(env, player, epoch);
+}
+
+/// Check if developer has claimed rewards for a game in an epoch
+pub(crate) fn has_dev_claimed(env: &Env, game_id: &Address, epoch: u32) -> bool {
+    env.storage()
+        .temporary()
+        .has(&DataKey::DevClaimed(game_id.clone(), epoch))
+}
+
+/// Mark developer rewards as claimed for game and epoch
+pub(crate) fn set_dev_claimed(env: &Env, game_id: &Address, epoch: u32) {
+    let key = DataKey::DevClaimed(game_id.clone(), epoch);
+    env.storage().temporary().set(&key, &true);
+    extend_dev_claimed_ttl(env, game_id, epoch);
 }
 
 // ============================================================================
@@ -236,6 +276,16 @@ const TTL_EXTEND_TO_LEDGERS: u32 = 518_400; // Extend to 30 days
 pub(crate) fn extend_player_ttl(env: &Env, player: &Address) {
     env.storage().persistent().extend_ttl(
         &DataKey::Player(player.clone()),
+        TTL_THRESHOLD_LEDGERS,
+        TTL_EXTEND_TO_LEDGERS,
+    );
+}
+
+/// Extend TTL for game registration data (persistent storage)
+/// Should be called whenever game data is read/written
+pub(crate) fn extend_game_ttl(env: &Env, game_id: &Address) {
+    env.storage().persistent().extend_ttl(
+        &DataKey::Game(game_id.clone()),
         TTL_THRESHOLD_LEDGERS,
         TTL_EXTEND_TO_LEDGERS,
     );
@@ -276,6 +326,26 @@ pub(crate) fn extend_claimed_ttl(env: &Env, player: &Address, epoch: u32) {
 pub(crate) fn extend_session_ttl(env: &Env, session_id: u32) {
     env.storage().temporary().extend_ttl(
         &DataKey::Session(session_id),
+        TTL_THRESHOLD_LEDGERS,
+        TTL_EXTEND_TO_LEDGERS,
+    );
+}
+
+/// Extend TTL for epoch game contribution data (temporary storage)
+/// Should be called whenever epoch game data is read/written
+pub(crate) fn extend_epoch_game_ttl(env: &Env, epoch: u32, game_id: &Address) {
+    env.storage().temporary().extend_ttl(
+        &DataKey::EpochGame(epoch, game_id.clone()),
+        TTL_THRESHOLD_LEDGERS,
+        TTL_EXTEND_TO_LEDGERS,
+    );
+}
+
+/// Extend TTL for developer claim tracking data (temporary storage)
+/// Should be called whenever dev claim data is read/written
+pub(crate) fn extend_dev_claimed_ttl(env: &Env, game_id: &Address, epoch: u32) {
+    env.storage().temporary().extend_ttl(
+        &DataKey::DevClaimed(game_id.clone(), epoch),
         TTL_THRESHOLD_LEDGERS,
         TTL_EXTEND_TO_LEDGERS,
     );

@@ -54,6 +54,36 @@ pub fn create_blendizzard_contract_with_free_play<'a>(
     free_fp_per_epoch: i128,
     min_deposit_to_claim: i128,
 ) -> BlendizzardClient<'a> {
+    create_blendizzard_contract_with_dev_share(
+        env,
+        admin,
+        fee_vault,
+        soroswap_router,
+        blnd_token,
+        usdc_token,
+        epoch_duration,
+        reserve_token_ids,
+        free_fp_per_epoch,
+        min_deposit_to_claim,
+        1_000_000, // 10% dev_reward_share
+    )
+}
+
+/// Register and initialize the Blendizzard contract with custom dev reward share
+#[allow(clippy::too_many_arguments)]
+pub fn create_blendizzard_contract_with_dev_share<'a>(
+    env: &Env,
+    admin: &Address,
+    fee_vault: &Address,
+    soroswap_router: &Address,
+    blnd_token: &Address,
+    usdc_token: &Address,
+    epoch_duration: u64,
+    reserve_token_ids: Vec<u32>,
+    free_fp_per_epoch: i128,
+    min_deposit_to_claim: i128,
+    dev_reward_share: i128,
+) -> BlendizzardClient<'a> {
     let contract_address = env.register(
         Blendizzard,
         (
@@ -66,6 +96,7 @@ pub fn create_blendizzard_contract_with_free_play<'a>(
             reserve_token_ids,
             free_fp_per_epoch,
             min_deposit_to_claim,
+            dev_reward_share,
         ),
     );
     BlendizzardClient::new(env, &contract_address)

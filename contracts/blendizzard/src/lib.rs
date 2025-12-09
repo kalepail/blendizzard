@@ -69,7 +69,9 @@ impl Blendizzard {
     /// * `reserve_token_ids` - Reserve token IDs for claiming BLND emissions (e.g., vec![&env, 1] for reserve 0 b-tokens)
     /// * `free_fp_per_epoch` - Base FP granted to all players each epoch (enables free play)
     /// * `min_deposit_to_claim` - Minimum vault balance required to claim rewards (anti-sybil)
+    /// * `dev_reward_share` - Portion of epoch rewards for game developers (7 decimals, e.g., 1_000_000 = 10%)
     ///
+    #[allow(clippy::too_many_arguments)]
     pub fn __constructor(
         env: Env,
         admin: Address,
@@ -81,6 +83,7 @@ impl Blendizzard {
         reserve_token_ids: Vec<u32>,
         free_fp_per_epoch: i128,
         min_deposit_to_claim: i128,
+        dev_reward_share: i128,
     ) {
         // Create config (admin and pause state stored separately)
         let config = Config {
@@ -92,6 +95,7 @@ impl Blendizzard {
             reserve_token_ids,
             free_fp_per_epoch,
             min_deposit_to_claim,
+            dev_reward_share,
         };
 
         // Save config, admin, and pause state (all stored separately for single source of truth)
@@ -148,6 +152,7 @@ impl Blendizzard {
     /// * `new_reserve_token_ids` - New reserve token IDs for claiming BLND emissions (optional)
     /// * `new_free_fp_per_epoch` - New base FP for free play (optional)
     /// * `new_min_deposit_to_claim` - New minimum deposit to claim rewards (optional)
+    /// * `new_dev_reward_share` - New portion of epoch rewards for game developers (optional)
     ///
     /// # Errors
     /// * `NotAdmin` - If caller is not the admin
@@ -162,6 +167,7 @@ impl Blendizzard {
         new_reserve_token_ids: Option<Vec<u32>>,
         new_free_fp_per_epoch: Option<i128>,
         new_min_deposit_to_claim: Option<i128>,
+        new_dev_reward_share: Option<i128>,
     ) -> Result<(), Error> {
         let admin = storage::get_admin(&env);
         admin.require_auth();
@@ -206,6 +212,11 @@ impl Blendizzard {
         // Update min deposit to claim if provided
         if let Some(min_deposit) = new_min_deposit_to_claim {
             config.min_deposit_to_claim = min_deposit;
+        }
+
+        // Update dev reward share if provided
+        if let Some(dev_share) = new_dev_reward_share {
+            config.dev_reward_share = dev_share;
         }
 
         storage::set_config(&env, &config);
@@ -271,25 +282,35 @@ impl Blendizzard {
     // Game Registry
     // ========================================================================
 
-    /// Add a game contract to the approved list
+    /// Add or update a game contract registration
+    ///
+    /// Registers a game contract with a developer address for reward distribution.
+    /// Can be called multiple times to update the developer address.
+    ///
+    /// # Arguments
+    /// * `game_id` - Address of the game contract to register
+    /// * `developer` - Address to receive developer rewards for this game
     ///
     /// # Errors
     /// * `NotAdmin` - If caller is not the admin
-    pub fn add_game(env: Env, id: Address) -> Result<(), Error> {
-        game::add_game(&env, &id)
+    pub fn add_game(env: Env, game_id: Address, developer: Address) -> Result<(), Error> {
+        game::add_game(&env, &game_id, &developer)
     }
 
     /// Remove a game contract from the approved list
     ///
+    /// Note: If the game has contributions in the current epoch, those will be
+    /// forfeited (developer cannot claim rewards for removed games).
+    ///
     /// # Errors
     /// * `NotAdmin` - If caller is not the admin
-    pub fn remove_game(env: Env, id: Address) -> Result<(), Error> {
-        game::remove_game(&env, &id)
+    pub fn remove_game(env: Env, game_id: Address) -> Result<(), Error> {
+        game::remove_game(&env, &game_id)
     }
 
     /// Check if a contract is an approved game
-    pub fn is_game(env: Env, id: Address) -> bool {
-        game::is_game(&env, &id)
+    pub fn is_game(env: Env, game_id: Address) -> bool {
+        game::is_game(&env, &game_id)
     }
 
     // ========================================================================
@@ -526,6 +547,29 @@ impl Blendizzard {
     pub fn claim_epoch_reward(env: Env, player: Address, epoch: u32) -> Result<i128, Error> {
         storage::require_not_paused(&env)?;
         rewards::claim_epoch_reward(&env, &player, epoch)
+    }
+
+    /// Claim developer reward for a game in a specific epoch
+    ///
+    /// Game developers can claim their share of the epoch's dev reward pool
+    /// proportional to the total FP contributed through their game.
+    ///
+    /// **Note:** To check claimable amounts or claim status before calling,
+    /// use transaction simulation. This is the idiomatic Soroban pattern.
+    ///
+    /// # Returns
+    /// Amount of USDC claimed and transferred to developer
+    ///
+    /// # Errors
+    /// * `GameNotRegistered` - If game is not registered
+    /// * `NotGameDeveloper` - If caller is not the registered developer
+    /// * `EpochNotFinalized` - If epoch doesn't exist or isn't finalized
+    /// * `DevRewardAlreadyClaimed` - If already claimed for this game/epoch
+    /// * `GameNoContributions` - If game has no contributions this epoch
+    /// * `ContractPaused` - If contract is in emergency pause mode
+    pub fn claim_dev_reward(env: Env, game_id: Address, epoch: u32) -> Result<i128, Error> {
+        storage::require_not_paused(&env)?;
+        rewards::claim_dev_reward(&env, &game_id, epoch)
     }
 }
 

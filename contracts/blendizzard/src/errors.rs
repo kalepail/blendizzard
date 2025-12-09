@@ -102,4 +102,19 @@ pub enum Error {
     // ========================================================================
     /// Contract is paused (emergency stop activated)
     ContractPaused = 70,
+
+    // ========================================================================
+    // Developer reward errors (80-89)
+    // ========================================================================
+    /// Game is not registered (for dev claims)
+    GameNotRegistered = 80,
+
+    /// Game has no contributions in this epoch
+    GameNoContributions = 81,
+
+    /// Developer has already claimed reward for this game/epoch
+    DevRewardAlreadyClaimed = 82,
+
+    /// Caller is not the registered developer for this game
+    NotGameDeveloper = 83,
 }

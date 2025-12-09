@@ -86,8 +86,9 @@ fn test_add_game() {
     // Initially not whitelisted
     assert!(!client.is_game(&game_contract));
 
-    // Add game
-    client.add_game(&game_contract);
+    // Add game (with developer address)
+    let developer = Address::generate(&env);
+    client.add_game(&game_contract, &developer);
 
     // Now whitelisted
     assert!(client.is_game(&game_contract));
@@ -101,8 +102,9 @@ fn test_remove_game() {
 
     let client = create_test_blendizzard(&env, &admin);
 
-    // Add game
-    client.add_game(&game_contract);
+    // Add game (with developer address)
+    let developer = Address::generate(&env);
+    client.add_game(&game_contract, &developer);
     assert!(client.is_game(&game_contract));
 
     // Remove game

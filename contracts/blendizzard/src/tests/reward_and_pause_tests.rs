@@ -52,7 +52,9 @@ fn setup_complete_game_env<'a>(
         vec![env, 1],
     );
 
-    blendizzard.add_game(&game);
+    // Add game to whitelist (with developer address)
+    let developer = Address::generate(env);
+    blendizzard.add_game(&game, &developer);
 
     (game, mock_vault_addr, mock_vault, blendizzard, usdc_client)
 }
@@ -128,7 +130,8 @@ fn test_admin_functions_work_when_paused() {
 
     // Admin can still add/remove games
     let new_game = Address::generate(&env);
-    blendizzard.add_game(&new_game);
+    let new_developer = Address::generate(&env);
+    blendizzard.add_game(&new_game, &new_developer);
     assert!(blendizzard.is_game(&new_game));
 
     blendizzard.remove_game(&new_game);
@@ -136,7 +139,7 @@ fn test_admin_functions_work_when_paused() {
 
     // Admin can update config (just verify it doesn't error)
     let new_router = Address::generate(&env);
-    blendizzard.update_config(&Some(new_router.clone()), &None, &None, &None, &None, &None, &None, &None);
+    blendizzard.update_config(&Some(new_router.clone()), &None, &None, &None, &None, &None, &None, &None, &None);
 
     // Config should be updated (just verify get_config works)
     let _config = blendizzard.get_config();
@@ -482,8 +485,9 @@ fn test_add_and_remove_game() {
     // Initially not whitelisted
     assert!(!blendizzard.is_game(&new_game));
 
-    // Add game
-    blendizzard.add_game(&new_game);
+    // Add game (with developer address)
+    let new_developer = Address::generate(&env);
+    blendizzard.add_game(&new_game, &new_developer);
     assert!(blendizzard.is_game(&new_game));
 
     // Remove game

@@ -74,6 +74,8 @@ fn test_claim_reward_goes_to_vault_not_player_wallet() {
         reward_pool,
         winning_faction: Some(0), // Faction 0 wins
         is_finalized: true,
+        total_game_fp: 0,
+        dev_reward_pool: 0,
     };
 
     // Manually store the epoch
@@ -203,6 +205,8 @@ fn test_cannot_claim_twice() {
         reward_pool,
         winning_faction: Some(0),
         is_finalized: true,
+        total_game_fp: 0,
+        dev_reward_pool: 0,
     };
 
     env.as_contract(&blendizzard.address, || {

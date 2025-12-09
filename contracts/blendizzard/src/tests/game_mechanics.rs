@@ -55,8 +55,9 @@ fn setup_game_test_env<'a>(
         reserve_token_ids,
     );
 
-    // Add game to whitelist
-    blendizzard.add_game(&game_contract);
+    // Add game to whitelist (with developer address)
+    let developer = Address::generate(env);
+    blendizzard.add_game(&game_contract, &developer);
 
     (
         admin,

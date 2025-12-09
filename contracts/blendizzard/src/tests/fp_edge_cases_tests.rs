@@ -51,7 +51,9 @@ fn setup_fp_test_env<'a>(
         reserve_token_ids,
     );
 
-    blendizzard.add_game(&game_contract);
+    // Add game to whitelist (with developer address)
+    let developer = Address::generate(env);
+    blendizzard.add_game(&game_contract, &developer);
 
     (game_contract, mock_vault_addr, mock_vault, blendizzard)
 }
@@ -74,7 +76,7 @@ fn test_fp_with_zero_vault_balance() {
     let player2 = Address::generate(&env);
 
     // Disable free play for this test to verify zero-balance behavior
-    blendizzard.update_config(&None, &None, &None, &None, &None, &None, &Some(0), &None);
+    blendizzard.update_config(&None, &None, &None, &None, &None, &None, &Some(0), &None, &None);
 
     blendizzard.select_faction(&player1, &0); // WholeNoodle
     blendizzard.select_faction(&player2, &1); // PointyStick

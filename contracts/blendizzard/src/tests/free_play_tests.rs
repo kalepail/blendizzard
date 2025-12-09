@@ -193,6 +193,7 @@ fn test_update_config_changes_free_fp() {
         &None, // reserve_token_ids
         &Some(new_free_fp), // new_free_fp_per_epoch
         &None, // min_deposit_to_claim
+        &None, // dev_reward_share
     );
 
     // Verify config updated
@@ -228,7 +229,8 @@ fn test_free_player_cannot_claim_rewards() {
     vault_client.set_user_balance(&player2, &10_0000000);
 
     // Add game and select factions
-    blendizzard.add_game(&game_id);
+    let developer = Address::generate(&env);
+    blendizzard.add_game(&game_id, &developer);
     blendizzard.select_faction(&player1, &0); // Same faction to ensure winner
     blendizzard.select_faction(&player2, &0);
 
@@ -272,7 +274,8 @@ fn test_player_can_claim_after_depositing() {
     vault_client.set_user_balance(&player2, &deposit_amount);
 
     // Add game and select factions
-    blendizzard.add_game(&game_id);
+    let developer = Address::generate(&env);
+    blendizzard.add_game(&game_id, &developer);
     blendizzard.select_faction(&player1, &0);
     blendizzard.select_faction(&player2, &0);
 
@@ -390,7 +393,7 @@ fn test_min_deposit_threshold_is_configurable() {
 
     // Update config to custom minimum deposit (5 USDC instead of default 1)
     let custom_min_deposit = 5_0000000i128;
-    blendizzard.update_config(&None, &None, &None, &None, &None, &None, &None, &Some(custom_min_deposit));
+    blendizzard.update_config(&None, &None, &None, &None, &None, &None, &None, &Some(custom_min_deposit), &None);
 
     // Verify config updated
     let config = blendizzard.get_config();
@@ -449,7 +452,8 @@ fn test_free_player_can_play_games() {
     );
 
     // Add game and select factions
-    blendizzard.add_game(&game_id);
+    let developer = Address::generate(&env);
+    blendizzard.add_game(&game_id, &developer);
     blendizzard.select_faction(&player1, &0);
     blendizzard.select_faction(&player2, &1);
 
@@ -507,7 +511,8 @@ fn test_free_player_cannot_wager_more_than_free_fp() {
     );
 
     // Add game and select factions
-    blendizzard.add_game(&game_id);
+    let developer = Address::generate(&env);
+    blendizzard.add_game(&game_id, &developer);
     blendizzard.select_faction(&player1, &0);
     blendizzard.select_faction(&player2, &1);
 
@@ -562,7 +567,8 @@ fn test_free_fp_contributes_to_faction_standings() {
     );
 
     // Add game and select SAME faction
-    blendizzard.add_game(&game_id);
+    let developer = Address::generate(&env);
+    blendizzard.add_game(&game_id, &developer);
     blendizzard.select_faction(&player1, &0);
     blendizzard.select_faction(&player2, &0);
 

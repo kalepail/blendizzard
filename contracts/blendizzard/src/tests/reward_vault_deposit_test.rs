@@ -105,7 +105,9 @@ fn setup_reward_claim_env<'a>(
         vec![env, 1],
     );
 
-    blendizzard.add_game(&game);
+    // Add game to whitelist (with developer address)
+    let developer = Address::generate(env);
+    blendizzard.add_game(&game, &developer);
 
     (
         game,
@@ -146,6 +148,8 @@ fn test_claim_reward_deposits_to_vault() {
         reward_pool,
         winning_faction: Some(0), // Faction 0 wins
         is_finalized: true,
+        total_game_fp: 0,
+        dev_reward_pool: 0,
     };
 
     env.as_contract(&blendizzard.address, || {
@@ -238,6 +242,8 @@ fn test_claim_reward_cannot_claim_twice() {
         reward_pool,
         winning_faction: Some(0), // Faction 0 wins
         is_finalized: true,
+        total_game_fp: 0,
+        dev_reward_pool: 0,
     };
 
     env.as_contract(&blendizzard.address, || {
@@ -305,6 +311,8 @@ fn test_claim_reward_proportional_distribution() {
         reward_pool: total_rewards,
         winning_faction: Some(0), // Faction 0 wins
         is_finalized: true,
+        total_game_fp: 0,
+        dev_reward_pool: 0,
     };
 
     env.as_contract(&blendizzard.address, || {

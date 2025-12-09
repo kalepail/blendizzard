@@ -74,7 +74,9 @@ fn setup_epoch_test_env<'a>(
         reserve_token_ids,
     );
 
-    blendizzard.add_game(&game_contract);
+    // Add game to whitelist (with developer address)
+    let developer = Address::generate(env);
+    blendizzard.add_game(&game_contract, &developer);
 
     (game_contract, mock_vault_addr, mock_vault, blendizzard)
 }

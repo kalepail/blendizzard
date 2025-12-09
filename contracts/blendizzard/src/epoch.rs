@@ -3,12 +3,14 @@ use soroban_sdk::{
     token, vec, Address, Env, IntoVal, Map, Symbol, Vec,
 };
 
+use soroban_fixed_point_math::FixedPoint;
+
 use crate::errors::Error;
 use crate::events::emit_epoch_cycled;
 use crate::fee_vault_v2::Client as FeeVaultClient;
 use crate::router::Client as SoroswapRouterClient;
 use crate::storage;
-use crate::types::EpochInfo;
+use crate::types::{EpochInfo, SCALAR_7};
 
 // ============================================================================
 // Epoch Management
@@ -64,7 +66,7 @@ pub(crate) fn cycle_epoch(env: &Env) -> Result<u32, Error> {
     // SECURITY FIX: Withdraw BLND from fee-vault and convert to USDC
     // Make swap failures non-fatal to prevent epoch cycling DoS
     // If swap fails, epoch still cycles but reward_pool is 0
-    let reward_pool = match withdraw_and_convert_rewards(env) {
+    let total_reward_pool = match withdraw_and_convert_rewards(env) {
         Ok(amount) => amount,
         Err(_) => {
             // Swap failed but we must continue cycling to prevent protocol freeze
@@ -77,15 +79,25 @@ pub(crate) fn cycle_epoch(env: &Env) -> Result<u32, Error> {
         }
     };
 
+    // Split reward pool between developers and players
+    // dev_reward_pool = total_reward_pool * dev_reward_share
+    // player_reward_pool = total_reward_pool - dev_reward_pool
+    let config = storage::get_config(env);
+    let dev_reward_pool = total_reward_pool
+        .fixed_mul_floor(config.dev_reward_share, SCALAR_7)
+        .unwrap_or(0);
+    let player_reward_pool = total_reward_pool.saturating_sub(dev_reward_pool);
+
     // Finalize current epoch
     current_epoch.winning_faction = Some(winning_faction);
-    current_epoch.reward_pool = reward_pool;
+    current_epoch.reward_pool = player_reward_pool; // Only player portion
+    current_epoch.dev_reward_pool = dev_reward_pool; // Developer portion
     current_epoch.is_finalized = true;
     storage::set_epoch(env, current_epoch_num, &current_epoch);
 
     // Create next epoch
     let next_epoch_num = current_epoch_num + 1;
-    let config = storage::get_config(env);
+    // config already fetched above
 
     let next_epoch = EpochInfo {
         start_time: current_time,
@@ -94,18 +106,20 @@ pub(crate) fn cycle_epoch(env: &Env) -> Result<u32, Error> {
         reward_pool: 0,
         winning_faction: None,
         is_finalized: false,
+        total_game_fp: 0,
+        dev_reward_pool: 0,
     };
 
     storage::set_epoch(env, next_epoch_num, &next_epoch);
     storage::set_current_epoch(env, next_epoch_num);
 
-    // Emit event
+    // Emit event (report player reward pool for consistency)
     emit_epoch_cycled(
         env,
         current_epoch_num,
         next_epoch_num,
         winning_faction,
-        reward_pool,
+        player_reward_pool,
     );
 
     Ok(next_epoch_num)
@@ -260,6 +274,8 @@ pub(crate) fn initialize_first_epoch(env: &Env, epoch_duration: u64) {
         reward_pool: 0,
         winning_faction: None,
         is_finalized: false,
+        total_game_fp: 0,
+        dev_reward_pool: 0,
     };
 
     storage::set_epoch(env, 0, &epoch);

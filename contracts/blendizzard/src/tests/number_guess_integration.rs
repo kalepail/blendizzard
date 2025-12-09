@@ -61,8 +61,9 @@ fn setup_number_guess_test<'a>(
     let number_guess_addr = env.register(NumberGuessContract, (&admin, &blendizzard.address));
     let number_guess_client = NumberGuessContractClient::new(env, &number_guess_addr);
 
-    // Add number-guess game to whitelist
-    blendizzard.add_game(&number_guess_addr);
+    // Add number-guess game to whitelist (with developer address)
+    let developer = Address::generate(env);
+    blendizzard.add_game(&number_guess_addr, &developer);
 
     (
         admin,
@@ -619,10 +620,11 @@ fn test_full_epoch_cycle_with_rewards() {
     // Mint BLND to the Blendizzard contract for epoch cycling swaps
     blnd_token_client.mint(&blendizzard.address, &5000_0000000);
 
-    // Deploy and register number-guess game
+    // Deploy and register number-guess game (with developer address)
     let number_guess_addr = env.register(NumberGuessContract, (&admin, &blendizzard.address));
     let number_guess_client = NumberGuessContractClient::new(&env, &number_guess_addr);
-    blendizzard.add_game(&number_guess_addr);
+    let game_developer = Address::generate(&env);
+    blendizzard.add_game(&number_guess_addr, &game_developer);
 
     // ========================================================================
     // Step 2: Set up players across different factions

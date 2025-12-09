@@ -2,41 +2,51 @@ use soroban_sdk::{Address, Env, IntoVal as _, vec};
 
 use crate::errors::Error;
 use crate::events::{emit_game_ended, emit_game_started};
-use crate::faction::lock_epoch_faction;
-use crate::faction_points::{initialize_epoch_fp, lock_fp};
+use crate::faction_points::initialize_epoch_fp;
 use crate::storage;
-use crate::types::GameSession;
+use crate::types::{EpochGame, GameInfo, GameSession};
 
 // ============================================================================
 // Game Registry
 // ============================================================================
 
-/// Add a game contract to the approved list
+/// Add or update a game contract registration
 ///
-/// Only whitelisted games can be played. This prevents malicious contracts
+/// Only registered games can be played. This prevents malicious contracts
 /// from interacting with the Blendizzard system.
+///
+/// Can be called multiple times to update the developer address.
 ///
 /// # Arguments
 /// * `env` - Contract environment
-/// * `game_id` - Address of the game contract to whitelist
+/// * `game_id` - Address of the game contract to register
+/// * `developer` - Address to receive developer rewards for this game
 ///
 /// # Errors
 /// * `NotAdmin` - If caller is not the admin
-pub(crate) fn add_game(env: &Env, game_id: &Address) -> Result<(), Error> {
+pub(crate) fn add_game(env: &Env, game_id: &Address, developer: &Address) -> Result<(), Error> {
     // Authenticate admin
     let admin = storage::get_admin(env);
     admin.require_auth();
 
-    // Add to whitelist
-    storage::add_game_to_whitelist(env, game_id);
+    // Create game info with developer address
+    let game_info = GameInfo {
+        developer: developer.clone(),
+    };
+
+    // Save game registration
+    storage::set_game_info(env, game_id, &game_info);
 
     // Emit event
-    crate::events::emit_game_added(env, game_id);
+    crate::events::emit_game_added(env, game_id, developer);
 
     Ok(())
 }
 
 /// Remove a game contract from the approved list
+///
+/// Note: If the game has contributions in the current epoch, those will be
+/// forfeited (developer cannot claim rewards for removed games).
 ///
 /// # Arguments
 /// * `env` - Contract environment
@@ -49,8 +59,8 @@ pub(crate) fn remove_game(env: &Env, game_id: &Address) -> Result<(), Error> {
     let admin = storage::get_admin(env);
     admin.require_auth();
 
-    // Remove from whitelist
-    storage::remove_game_from_whitelist(env, game_id);
+    // Remove game registration
+    storage::remove_game_info(env, game_id);
 
     // Emit event
     crate::events::emit_game_removed(env, game_id);
@@ -65,11 +75,12 @@ pub(crate) fn remove_game(env: &Env, game_id: &Address) -> Result<(), Error> {
 /// * `game_id` - Address of the game contract to check
 ///
 /// # Returns
-/// * `true` if the game is whitelisted
+/// * `true` if the game is registered
 /// * `false` otherwise
 pub(crate) fn is_game(env: &Env, game_id: &Address) -> bool {
-    storage::is_game_whitelisted(env, game_id)
+    storage::is_game_registered(env, game_id)
 }
+
 
 // ============================================================================
 // Game Lifecycle
@@ -108,12 +119,12 @@ pub(crate) fn start_game(
     player2_wager: i128,
 ) -> Result<(), Error> {
     // SECURITY: Require game contract to authorize this call
-    // Only the whitelisted game contract should be able to start sessions
-    // This prevents fake sessions from being created with a whitelisted game_id
+    // Only the registered game contract should be able to start sessions
+    // This prevents fake sessions from being created with a registered game_id
     game_id.require_auth();
 
-    // Validate game is whitelisted
-    if !storage::is_game_whitelisted(env, game_id) {
+    // Validate game is registered
+    if !storage::is_game_registered(env, game_id) {
         return Err(Error::GameNotWhitelisted);
     }
 
@@ -144,13 +155,12 @@ pub(crate) fn start_game(
     initialize_player_epoch(env, player1, current_epoch)?;
     initialize_player_epoch(env, player2, current_epoch)?;
 
-    // Lock factions for both players (stored in EpochPlayer.epoch_faction)
-    lock_epoch_faction(env, player1, current_epoch)?;
-    lock_epoch_faction(env, player2, current_epoch)?;
-
-    // Lock faction points for both players
-    lock_fp(env, player1, player1_wager, current_epoch)?;
-    lock_fp(env, player2, player2_wager, current_epoch)?;
+    // Prepare players: lock faction + lock FP in single storage operation
+    // Returns EpochPlayer for event emission (avoids redundant reads)
+    let p1_epoch_data =
+        crate::faction_points::prepare_player_for_game(env, player1, player1_wager, current_epoch)?;
+    let p2_epoch_data =
+        crate::faction_points::prepare_player_for_game(env, player2, player2_wager, current_epoch)?;
 
     // Create game session
     let session = GameSession {
@@ -166,12 +176,6 @@ pub(crate) fn start_game(
     // Save session
     storage::set_session(env, session_id, &session);
 
-    // Get epoch player data for event emission
-    let p1_epoch_data =
-        storage::get_epoch_player(env, current_epoch, player1).ok_or(Error::PlayerNotFound)?;
-    let p2_epoch_data =
-        storage::get_epoch_player(env, current_epoch, player2).ok_or(Error::PlayerNotFound)?;
-
     // Emit event with enhanced data
     emit_game_started(
         env,
@@ -181,8 +185,8 @@ pub(crate) fn start_game(
         player2,
         player1_wager,
         player2_wager,
-        p1_epoch_data.epoch_faction.unwrap_or(0), // Should always be Some after lock_epoch_faction
-        p2_epoch_data.epoch_faction.unwrap_or(0), // Should always be Some after lock_epoch_faction
+        p1_epoch_data.epoch_faction.unwrap_or(0), // Should always be Some after prepare_player_for_game
+        p2_epoch_data.epoch_faction.unwrap_or(0), // Should always be Some after prepare_player_for_game
         p1_epoch_data.available_fp,               // Remaining FP after wager deduction
         p2_epoch_data.available_fp,               // Remaining FP after wager deduction
     );
@@ -246,7 +250,7 @@ pub(crate) fn end_game(env: &Env, session_id: u32, player1_won: bool) -> Result<
 
     // Spend FP: Both players LOSE their wagered FP (it's consumed/burned)
     // Only the winner's wager contributes to their faction standings
-    // Note: FP was already subtracted from available_fp when game started (in lock_fp)
+    // Note: FP was already subtracted from available_fp when game started (in prepare_player_for_game)
 
     // Get winner's epoch data
     let mut winner_epoch =
@@ -266,10 +270,21 @@ pub(crate) fn end_game(env: &Env, session_id: u32, player1_won: bool) -> Result<
     session.player1_won = Some(player1_won);
     storage::set_session(env, session_id, &session);
 
-    // Update faction standings (only winner's wager contributes)
-    update_faction_standings(env, winner, winner_wager, current_epoch)?;
+    // Update epoch info: faction standings + game contributions (single read/write)
+    let total_game_wager = session
+        .player1_wager
+        .checked_add(session.player2_wager)
+        .ok_or(Error::OverflowError)?;
+    update_epoch_on_game_end(
+        env,
+        winner,
+        winner_wager,
+        &session.game_id,
+        total_game_wager,
+        current_epoch,
+    )?;
 
-    // Emit event (only winner's wager counts as contribution)
+    // Emit event (only winner's wager counts as faction contribution)
     emit_game_ended(
         env,
         &session.game_id,
@@ -339,11 +354,21 @@ fn initialize_player_epoch(env: &Env, player: &Address, current_epoch: u32) -> R
     Ok(())
 }
 
-/// Update faction standings with the winner's FP contribution
-fn update_faction_standings(
+/// Update epoch info when a game ends (single read/write for efficiency)
+///
+/// Combines faction standings update and game contribution tracking to avoid
+/// double read/write of EpochInfo storage.
+///
+/// Updates:
+/// 1. Faction standings (winner's wager)
+/// 2. Total game FP (both wagers for dev rewards)
+/// 3. Per-game FP contribution (EpochGame)
+fn update_epoch_on_game_end(
     env: &Env,
     winner: &Address,
-    fp_amount: i128,
+    winner_wager: i128,
+    game_id: &Address,
+    total_game_wager: i128,
     current_epoch: u32,
 ) -> Result<(), Error> {
     // Get winner's faction
@@ -354,19 +379,36 @@ fn update_faction_standings(
         .epoch_faction
         .ok_or(Error::FactionAlreadyLocked)?;
 
-    // Get current epoch info
+    // Get current epoch info (single read)
     let mut epoch_info = storage::get_epoch(env, current_epoch).ok_or(Error::EpochNotFinalized)?;
 
-    // Update faction standings
+    // 1. Update faction standings (winner's wager only)
     let current_standing = epoch_info.faction_standings.get(faction).unwrap_or(0);
     let new_standing = current_standing
-        .checked_add(fp_amount)
+        .checked_add(winner_wager)
         .ok_or(Error::OverflowError)?;
-
     epoch_info.faction_standings.set(faction, new_standing);
 
-    // Save epoch info
+    // 2. Update total game FP (both wagers for dev reward calculation)
+    epoch_info.total_game_fp = epoch_info
+        .total_game_fp
+        .checked_add(total_game_wager)
+        .ok_or(Error::OverflowError)?;
+
+    // Save epoch info (single write)
     storage::set_epoch(env, current_epoch, &epoch_info);
+
+    // 3. Update per-game contribution (separate storage key)
+    let mut epoch_game = storage::get_epoch_game(env, current_epoch, game_id).unwrap_or(EpochGame {
+        total_fp_contributed: 0,
+    });
+
+    epoch_game.total_fp_contributed = epoch_game
+        .total_fp_contributed
+        .checked_add(total_game_wager)
+        .ok_or(Error::OverflowError)?;
+
+    storage::set_epoch_game(env, current_epoch, game_id, &epoch_game);
 
     Ok(())
 }

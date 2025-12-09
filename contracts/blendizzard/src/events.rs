@@ -19,6 +19,7 @@ pub struct AdminChanged {
 #[contractevent]
 pub struct GameAdded {
     pub game_id: Address,
+    pub developer: Address,
 }
 
 #[contractevent]
@@ -138,6 +139,17 @@ pub struct RewardsClaimed {
     pub amount: i128,
 }
 
+#[contractevent]
+pub struct DevRewardClaimed {
+    #[topic]
+    pub game_id: Address,
+    #[topic]
+    pub developer: Address,
+    pub epoch: u32,
+    pub fp_contributed: i128,
+    pub amount: i128,
+}
+
 // ============================================================================
 // Event Emission Helper Functions
 // ============================================================================
@@ -152,9 +164,10 @@ pub(crate) fn emit_admin_changed(env: &Env, old_admin: &Address, new_admin: &Add
 }
 
 /// Emit game added event
-pub(crate) fn emit_game_added(env: &Env, game_id: &Address) {
+pub(crate) fn emit_game_added(env: &Env, game_id: &Address, developer: &Address) {
     GameAdded {
         game_id: game_id.clone(),
+        developer: developer.clone(),
     }
     .publish(env);
 }
@@ -298,6 +311,25 @@ pub(crate) fn emit_rewards_claimed(
         player: player.clone(),
         epoch,
         faction,
+        amount,
+    }
+    .publish(env);
+}
+
+/// Emit developer reward claimed event
+pub(crate) fn emit_dev_reward_claimed(
+    env: &Env,
+    game_id: &Address,
+    developer: &Address,
+    epoch: u32,
+    fp_contributed: i128,
+    amount: i128,
+) {
+    DevRewardClaimed {
+        game_id: game_id.clone(),
+        developer: developer.clone(),
+        epoch,
+        fp_contributed,
         amount,
     }
     .publish(env);

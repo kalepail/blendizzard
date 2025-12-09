@@ -674,8 +674,9 @@ fn test_full_epoch_cycle_with_all_real_contracts() {
     let player2 = Address::generate(&env);
     let game_contract = Address::generate(&env);
 
-    // Add game to whitelist
-    blendizzard.add_game(&game_contract);
+    // Add game to whitelist (with developer address)
+    let developer = Address::generate(&env);
+    blendizzard.add_game(&game_contract, &developer);
 
     // Players select factions
     blendizzard.select_faction(&player1, &0); // WholeNoodle

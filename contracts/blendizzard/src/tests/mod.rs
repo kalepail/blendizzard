@@ -1,6 +1,7 @@
 mod blend_integration_tests;
 pub(crate) mod blend_utils;
 mod cross_epoch_tests;
+mod dev_reward_tests;
 mod emissions_tests;
 mod epoch_edge_cases_tests;
 pub(crate) mod fee_vault_utils;

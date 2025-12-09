@@ -84,7 +84,8 @@ pub struct EpochInfo {
     /// Used to determine the winning faction
     pub faction_standings: Map<u32, i128>,
 
-    /// Total USDC available for reward distribution (set during cycle_epoch)
+    /// Total USDC available for player reward distribution (set during cycle_epoch)
+    /// This is 90% of total rewards (after dev share is deducted)
     pub reward_pool: i128,
 
     /// The winning faction (None until epoch is finalized)
@@ -92,6 +93,14 @@ pub struct EpochInfo {
 
     /// True if epoch has been finalized via cycle_epoch
     pub is_finalized: bool,
+
+    /// Total FP wagered across all games this epoch
+    /// Used to calculate each game's share of the dev reward pool
+    pub total_game_fp: i128,
+
+    /// Developer reward pool (portion of rewards for game developers)
+    /// Set during cycle_epoch: total_rewards * dev_reward_share
+    pub dev_reward_pool: i128,
 }
 
 /// Game session tracking
@@ -123,6 +132,28 @@ pub struct GameSession {
     /// Winner of the game (None = pending, Some = completed)
     /// true = player1 won, false = player2 won
     pub player1_won: Option<bool>,
+}
+
+/// Game registration info (Persistent storage)
+///
+/// Stores the developer address for whitelisted games.
+/// Used to track FP contributions and developer reward claims.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GameInfo {
+    /// Developer address who receives reward share for this game
+    pub developer: Address,
+}
+
+/// Per-epoch game contribution tracking (Temporary storage)
+///
+/// Tracks total FP contributed through a game during an epoch.
+/// Used to calculate developer's share of the reward pool.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EpochGame {
+    /// Total FP from all games (both player wagers combined)
+    pub total_fp_contributed: i128,
 }
 
 // ============================================================================
@@ -167,6 +198,11 @@ pub struct Config {
     /// Anti-sybil mechanism: players must deposit to extract value
     /// Default: 1_0000000 (1 USDC)
     pub min_deposit_to_claim: i128,
+
+    /// Developer reward share as fixed-point (7 decimals)
+    /// Portion of epoch rewards allocated to game developers
+    /// Default: 1_000_000 (10% = 0.10 with 7 decimals)
+    pub dev_reward_share: i128,
 }
 
 // ============================================================================
