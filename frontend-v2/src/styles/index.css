@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-terminal-dim;
+  }
+
+  html {
+    @apply text-terminal-fg;
+    font-family: 'IBM Plex Mono', monospace;
+    background: transparent;
+  }
+
+  body {
+    @apply min-h-screen overflow-x-hidden;
+    background: transparent;
+  }
+
+  #root {
+    background: transparent;
+  }
+
+  ::selection {
+    @apply bg-terminal-fg text-terminal-bg;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-terminal-bg;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-terminal-dim;
+    border: 1px solid #0a0a0a;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-terminal-hover;
+  }
+}
+
+@layer components {
+  .ascii-border {
+    border: 1px solid currentColor;
+    box-shadow:
+      2px 2px 0 currentColor,
+      -1px -1px 0 currentColor inset;
+  }
+
+  .ascii-box {
+    border: 1px solid currentColor;
+    position: relative;
+  }
+
+  .ascii-box::before {
+    content: '+';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    line-height: 1;
+  }
+
+  .ascii-box::after {
+    content: '+';
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    line-height: 1;
+  }
+
+  .terminal-glow {
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+  }
+
+  .scanline-overlay {
+    pointer-events: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.1) 0px,
+      rgba(0, 0, 0, 0.1) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    z-index: 9999;
+  }
+
+  .btn-retro {
+    @apply px-6 py-3 border border-terminal-fg bg-transparent text-terminal-fg font-mono uppercase tracking-widest;
+    @apply hover:bg-terminal-fg hover:text-terminal-bg transition-colors duration-100;
+    @apply focus:outline-none focus:ring-2 focus:ring-terminal-fg focus:ring-offset-2 focus:ring-offset-terminal-bg;
+    position: relative;
+  }
+
+  .btn-retro::before {
+    content: '[ ';
+  }
+
+  .btn-retro::after {
+    content: ' ]';
+  }
+
+  .link-retro {
+    @apply text-terminal-fg underline underline-offset-4 decoration-terminal-dim;
+    @apply hover:decoration-terminal-fg transition-colors;
+  }
+
+  .cursor-block {
+    @apply inline-block w-2 h-5 bg-terminal-fg animate-blink ml-1;
+    vertical-align: text-bottom;
+  }
+}
+
+@layer utilities {
+  .text-glitch {
+    animation: glitch 2s infinite;
+  }
+}
