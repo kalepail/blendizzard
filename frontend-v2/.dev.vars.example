@@ -1,0 +1,5 @@
+# Cloudflare Worker Secrets (for local development)
+# Copy this to .dev.vars and fill in your values
+
+# Soroswap API key - get from https://soroswap.finance
+SOROSWAP_API_KEY=sk_your_api_key_here

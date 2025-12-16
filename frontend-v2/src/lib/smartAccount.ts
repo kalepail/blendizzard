@@ -12,6 +12,7 @@ const CONFIG = {
   nativeTokenContract: import.meta.env.VITE_NATIVE_TOKEN_CONTRACT || 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
   launchtubeUrl: import.meta.env.VITE_LAUNCHTUBE_URL || '',
   launchtubeJwt: import.meta.env.VITE_LAUNCHTUBE_JWT || '',
+  indexerUrl: import.meta.env.VITE_SMART_ACCOUNT_INDEXER_URL || '',
 }
 
 // Singleton kit instance
@@ -34,7 +35,9 @@ export function getKit(): SmartAccountKit {
       accountWasmHash: CONFIG.accountWasmHash,
       webauthnVerifierAddress: CONFIG.webauthnVerifierAddress,
       storage: new IndexedDBStorage(),
-      rpName: 'Blendizzard',
+      rpName: 'Ohloss',
+      // Indexer for reverse lookups (credential -> contracts)
+      ...(CONFIG.indexerUrl && { indexerUrl: CONFIG.indexerUrl }),
       // Launchtube for fee-sponsored transactions (optional)
       ...(CONFIG.launchtubeUrl && {
         launchtube: {
@@ -65,7 +68,7 @@ export async function createWallet(userName?: string): Promise<{
 }> {
   const kit = getKit()
 
-  const result = await kit.createWallet('Blendizzard', userName || 'Player', {
+  const result = await kit.createWallet('Ohloss', userName || 'Player', {
     autoSubmit: true,
   })
 

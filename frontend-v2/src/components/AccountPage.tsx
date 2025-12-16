@@ -44,6 +44,7 @@ import {
 } from '@/lib/contractService'
 import { AsciiBackground } from './AsciiBackground'
 import { AsciiLoader } from './AsciiLoader'
+import { SwapPanel } from './SwapPanel'
 
 // Mock game library data
 const MOCK_GAMES = [
@@ -379,7 +380,7 @@ export function AccountPage() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="font-mono text-sm tracking-wider">
             <span className="text-terminal-dim">[</span>
-            <span className="text-terminal-fg">BLENDIZZARD</span>
+            <span className="text-terminal-fg">OHLOSS</span>
             <span className="text-terminal-dim">]</span>
           </div>
           <nav className="flex items-center gap-4">
@@ -537,7 +538,7 @@ export function AccountPage() {
                 <RefreshIcon spinning={isRefreshingBalances} />
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="border border-terminal-dim p-4 text-center">
                 <div className="text-terminal-fg text-2xl font-bold">
                   {formatXLM(xlmBalance)}
@@ -551,6 +552,19 @@ export function AccountPage() {
                 <div className="text-terminal-dim text-[10px] tracking-wider">USDC</div>
               </div>
             </div>
+
+            {/* XLM to USDC Swap */}
+            {address && (
+              <SwapPanel
+                xlmBalance={xlmBalance}
+                address={address}
+                onSwapComplete={() => {
+                  if (address) {
+                    refreshBalances(address)
+                  }
+                }}
+              />
+            )}
           </div>
 
           {/* Vault Section */}
@@ -818,7 +832,7 @@ export function AccountPage() {
           {/* Footer */}
           <div className="text-center py-4">
             <p className="text-terminal-dim text-xs">
-              {'// '} BLENDIZZARD v0.0.1 {' //'}
+              {'// '} OHLOSS v0.0.1 {' //'}
             </p>
           </div>
         </div>

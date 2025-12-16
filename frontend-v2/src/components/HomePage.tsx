@@ -12,12 +12,12 @@ import {
 } from '@/lib/smartAccount'
 
 const ASCII_LOGO = `
- ██████╗ ██╗     ███████╗███╗   ██╗██████╗ ██╗███████╗███████╗ █████╗ ██████╗ ██████╗
- ██╔══██╗██║     ██╔════╝████╗  ██║██╔══██╗██║╚══███╔╝╚══███╔╝██╔══██╗██╔══██╗██╔══██╗
- ██████╔╝██║     █████╗  ██╔██╗ ██║██║  ██║██║  ███╔╝   ███╔╝ ███████║██████╔╝██║  ██║
- ██╔══██╗██║     ██╔══╝  ██║╚██╗██║██║  ██║██║ ███╔╝   ███╔╝  ██╔══██║██╔══██╗██║  ██║
- ██████╔╝███████╗███████╗██║ ╚████║██████╔╝██║███████╗███████╗██║  ██║██║  ██║██████╔╝
- ╚═════╝ ╚══════╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝
+  ██████╗ ██╗  ██╗██╗      ██████╗ ███████╗███████╗
+ ██╔═══██╗██║  ██║██║     ██╔═══██╗██╔════╝██╔════╝
+ ██║   ██║███████║██║     ██║   ██║███████╗███████╗
+ ██║   ██║██╔══██║██║     ██║   ██║╚════██║╚════██║
+ ╚██████╔╝██║  ██║███████╗╚██████╔╝███████║███████║
+  ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚══════╝╚══════╝
 `
 
 const FACTIONS = [
@@ -186,7 +186,7 @@ export function HomePage() {
             className="font-mono text-sm tracking-wider"
           >
             <span className="text-terminal-dim">[</span>
-            <span className="text-terminal-fg">BLENDIZZARD</span>
+            <span className="text-terminal-fg">OHLOSS</span>
             <span className="text-terminal-dim">]</span>
           </button>
           <nav className="flex items-center gap-6 text-xs tracking-widest">
@@ -223,7 +223,7 @@ export function HomePage() {
         {/* All hero content centered together */}
         <div className="text-center">
           {/* ASCII Logo */}
-          <pre className="text-[0.35rem] sm:text-[0.5rem] md:text-xs leading-none text-terminal-fg/80 mb-8 overflow-x-auto font-mono">
+          <pre className="text-[0.35rem] sm:text-[0.5rem] md:text-xs leading-none text-terminal-fg/80 mb-8 font-mono">
             {ASCII_LOGO}
           </pre>
 
@@ -628,11 +628,11 @@ export function HomePage() {
           <div className="mb-8">
             <pre className="text-terminal-fg/60 text-xs md:text-sm inline-block">
 {`
-    ╔════════════════════════════════════╗
-    ║                                    ║
-    ║   READY TO JOIN THE BLENDIZZARD?   ║
-    ║                                    ║
-    ╚════════════════════════════════════╝
+    ╔════════════════════════════════╗
+    ║                                ║
+    ║   READY TO JOIN THE OHLOSS?    ║
+    ║                                ║
+    ╚════════════════════════════════╝
 `}
             </pre>
           </div>
@@ -654,7 +654,7 @@ export function HomePage() {
       <footer className="border-t border-terminal-dim py-8 px-4">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-terminal-dim text-xs">
-            {'// '} BLENDIZZARD v0.0.1 {' //'}
+            {'// '} OHLOSS v0.0.1 {' //'}
           </div>
           <div className="flex items-center gap-6 text-xs">
             <a href="https://github.com" className="text-terminal-dim hover:text-terminal-fg transition-colors">
