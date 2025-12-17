@@ -13,4 +13,11 @@ export default defineConfig({
   define: {
     global: 'globalThis',
   },
+  ssr: {
+    // Force Vite to bundle stellar-sdk (resolves subpath export issues like /contract, /rpc)
+    noExternal: ['@stellar/stellar-sdk', 'blendizzard', 'fee-vault'],
+  },
+  optimizeDeps: {
+    include: ['@stellar/stellar-sdk', 'buffer'],
+  },
 })
