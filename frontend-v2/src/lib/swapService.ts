@@ -18,6 +18,7 @@ const { Server: RpcServer, Api: RpcApi, assembleTransaction } = rpc
 const SCALAR_7 = 10_000_000n
 const NETWORK_PASSPHRASE = import.meta.env.VITE_NETWORK_PASSPHRASE || Networks.PUBLIC
 const RPC_URL = import.meta.env.VITE_RPC_URL || 'https://mainnet.sorobanrpc.com'
+const API_URL = import.meta.env.VITE_API_URL || ''
 
 // Mainnet contract addresses
 const AGGREGATOR_CONTRACT = 'CAYP3UWLJM7ZPTUKL6R6BFGTRWLZ46LRKOXTERI2K6BIJAWGYY62TXTO'
@@ -77,7 +78,7 @@ export async function getSwapQuote(
   slippageBps = 500
 ): Promise<{ success: true; quote: SwapQuote } | { success: false; error: string }> {
   try {
-    const response = await fetch('/api/swap/quote', {
+    const response = await fetch(`${API_URL}/api/swap/quote`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
