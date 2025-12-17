@@ -709,16 +709,16 @@ export async function fetchPlayerRewards(
       epochPlayer.total_fp_contributed > 0n
     ) {
       // Calculate estimated reward
-      const winningFactionFp =
-        epochInfo.faction_standings.get(winningFaction) || 1n
-      const estimatedReward =
+      const winningFactionFp: bigint =
+        epochInfo.faction_standings.get(winningFaction) ?? 1n
+      const estimatedReward: bigint =
         (epochPlayer.total_fp_contributed * epochInfo.reward_pool) / winningFactionFp
 
       if (estimatedReward > 0n) {
         rewards.push({
           epoch,
           amount: estimatedReward,
-          faction: playerFaction,
+          faction: playerFaction as number,
           fpContributed: epochPlayer.total_fp_contributed,
         })
       }
@@ -813,7 +813,7 @@ export async function fetchDevRewards(
         epochInfo.total_game_fp > 0n
       ) {
         // Calculate estimated dev reward: (game_fp / total_game_fp) * dev_reward_pool
-        const estimatedReward =
+        const estimatedReward: bigint =
           (epochGame.total_fp_contributed * epochInfo.dev_reward_pool) / epochInfo.total_game_fp
 
         if (estimatedReward > 0n) {
