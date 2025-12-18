@@ -346,6 +346,31 @@ async function getPlayerData(playerAddress: string): Promise<{ timeMultiplierSta
 }
 
 /**
+ * Get player's selected faction.
+ * Returns faction number (0=WholeNoodle, 1=PointyStick, 2=SpecialRock), or null if not set.
+ */
+export async function getPlayerFaction(playerAddress: string): Promise<number | null> {
+  if (!BLENDIZZARD_CONTRACT) return null
+
+  try {
+    const rpcClient = getRpc()
+    const playerKey = buildPlayerKey(playerAddress)
+    const ledgerKey = storageKeyToLedgerKey(BLENDIZZARD_CONTRACT, playerKey, 'persistent')
+
+    const response = await rpcClient.getLedgerEntries(ledgerKey)
+    const entry = response.entries?.[0]
+
+    if (!entry) return null
+
+    const native = scValToNative(entry.val.contractData().val()) as any
+    return native.selected_faction ?? null
+  } catch (err) {
+    console.error('[getPlayerFaction] Error:', err)
+    return null
+  }
+}
+
+/**
  * Calculate potential FP for a player who hasn't played a game this epoch yet.
  */
 async function getPotentialFp(playerAddress: string): Promise<bigint> {

@@ -80,9 +80,6 @@ interface PendingRequest {
   timestamp: number
 }
 
-const POPUP_WIDTH = 420
-const POPUP_HEIGHT = 600
-
 export function SignerPage() {
   const { address, setAddress } = useWalletStore()
 
@@ -116,19 +113,6 @@ export function SignerPage() {
   useEffect(() => {
     pendingRequestRef.current = pendingRequest
   }, [pendingRequest])
-
-  // Try to resize/move the popup from inside the window.
-  // Some browsers (notably Safari) ignore the opener's window.open sizing.
-  useEffect(() => {
-    try {
-      const left = Math.round((window.screen.width - POPUP_WIDTH) / 2)
-      const top = Math.round((window.screen.height - POPUP_HEIGHT) / 2)
-      window.resizeTo(POPUP_WIDTH, POPUP_HEIGHT)
-      window.moveTo(left, top)
-    } catch {
-      // If the browser blocks it, ignore and rely on the compact layout constraints.
-    }
-  }, [])
 
   // Get opener window
   useEffect(() => {
