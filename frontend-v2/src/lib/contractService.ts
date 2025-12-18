@@ -529,12 +529,22 @@ function buildEpochKey(epoch: number): xdr.ScVal {
 }
 
 /**
- * Build storage key for EpochGame
+ * Build storage key for EpochGame (keyed by developer address)
  */
-function buildEpochGameKey(epoch: number, gameAddress: string): xdr.ScVal {
+function buildEpochGameKey(epoch: number, developerAddress: string): xdr.ScVal {
   return xdr.ScVal.scvVec([
     xdr.ScVal.scvSymbol('EpochGame'),
     xdr.ScVal.scvU32(epoch),
+    new Address(developerAddress).toScVal(),
+  ])
+}
+
+/**
+ * Build storage key for Game (GameInfo)
+ */
+function buildGameKey(gameAddress: string): xdr.ScVal {
+  return xdr.ScVal.scvVec([
+    xdr.ScVal.scvSymbol('Game'),
     new Address(gameAddress).toScVal(),
   ])
 }
@@ -833,6 +843,98 @@ export async function fetchDevRewards(
   }
 
   return rewards
+}
+
+// =============================================================================
+// Game Info Queries
+// =============================================================================
+
+export interface GameInfo {
+  developer: string
+}
+
+export interface GameStats {
+  gameId: string
+  developer: string
+  totalFpContributed: bigint
+}
+
+/**
+ * Get GameInfo (developer address) for a registered game
+ */
+export async function getGameInfo(gameId: string): Promise<GameInfo | null> {
+  const rpcClient = getRpc()
+  const contractId = CONFIG.blendizzardContract
+
+  try {
+    const key = buildGameKey(gameId)
+    const ledgerKey = storageKeyToLedgerKey(contractId, key, 'persistent')
+
+    const response = await rpcClient.getLedgerEntries(ledgerKey)
+
+    if (response.entries && response.entries.length > 0) {
+      const entry = response.entries[0]
+      const contractData = entry.val.contractData()
+      const val = contractData.val()
+      const native = scValToNative(val)
+
+      return {
+        developer: native.developer,
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.error(`Error fetching GameInfo for ${gameId}:`, error)
+    return null
+  }
+}
+
+/**
+ * Get FP contributed for a game in the current epoch
+ * Requires looking up the developer first, then querying EpochGame
+ */
+export async function getGameStats(gameId: string, epoch: number): Promise<GameStats | null> {
+  try {
+    // First get the developer address from GameInfo
+    const gameInfo = await getGameInfo(gameId)
+    if (!gameInfo) {
+      console.log(`Game ${gameId} not found`)
+      return null
+    }
+
+    const rpcClient = getRpc()
+    const contractId = CONFIG.blendizzardContract
+
+    // Now query EpochGame using the developer address
+    const key = buildEpochGameKey(epoch, gameInfo.developer)
+    const ledgerKey = storageKeyToLedgerKey(contractId, key, 'temporary')
+
+    const response = await rpcClient.getLedgerEntries(ledgerKey)
+
+    if (response.entries && response.entries.length > 0) {
+      const entry = response.entries[0]
+      const contractData = entry.val.contractData()
+      const val = contractData.val()
+      const native = scValToNative(val)
+
+      return {
+        gameId,
+        developer: gameInfo.developer,
+        totalFpContributed: BigInt(native.total_fp_contributed || 0),
+      }
+    }
+
+    // Game exists but no contributions this epoch
+    return {
+      gameId,
+      developer: gameInfo.developer,
+      totalFpContributed: 0n,
+    }
+  } catch (error) {
+    console.error(`Error fetching GameStats for ${gameId}:`, error)
+    return null
+  }
 }
 
 // =============================================================================

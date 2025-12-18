@@ -42,6 +42,8 @@ import {
   withdrawFromVault,
   claimEpochReward,
   claimDevReward,
+  getGameStats,
+  type GameStats,
 } from '@/lib/contractService'
 import { AsciiBackground } from './AsciiBackground'
 import { AsciiLoader } from './AsciiLoader'
@@ -80,11 +82,15 @@ function calculatePotentialFp(
 // Default free FP per epoch (100 FP with 7 decimals = 1,000,000,000)
 const DEFAULT_FREE_FP = 1_000_000_000n
 
-// Mock game library data
-const MOCK_GAMES = [
-  { id: 'coin-flip', name: 'COIN FLIP', status: 'LIVE', players: 142 },
-  { id: 'rock-paper-scissors', name: 'RPS DUEL', status: 'LIVE', players: 89 },
-  { id: 'dice-roll', name: 'DICE ROLL', status: 'COMING SOON', players: 0 },
+// Game library - contractId is used to look up developer and FP stats
+const GAMES = [
+  {
+    id: 'number-guess',
+    name: 'NUMBER GUESS',
+    description: 'GUESS CLOSEST TO THE WINNING NUMBER',
+    url: 'https://ohloss-number-guess.pages.dev/',
+    contractId: 'CDB6IODG5BNNVILLJXBXYZVR7NP4HDO2NL7WALWIXGIDMA6VY4V75CEX',
+  },
 ]
 
 export function AccountPage() {
@@ -133,6 +139,8 @@ export function AccountPage() {
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
   const [showGameLibrary, setShowGameLibrary] = useState(false)
+  const [gameStats, setGameStats] = useState<Map<string, GameStats>>(new Map())
+  const [loadingGameStats, setLoadingGameStats] = useState(false)
   const [pendingFaction, setPendingFaction] = useState<number | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -207,6 +215,28 @@ export function AccountPage() {
     }, 30000)
     return () => clearInterval(interval)
   }, [refreshFactionStandings, address, isPlayer, isDeveloper, fetchAllRewards, fetchAllPlayerData])
+
+  // Fetch game stats when Game Library modal opens
+  useEffect(() => {
+    if (!showGameLibrary || currentEpoch === null) return
+
+    const fetchStats = async () => {
+      setLoadingGameStats(true)
+      const newStats = new Map<string, GameStats>()
+
+      for (const game of GAMES) {
+        const stats = await getGameStats(game.contractId, currentEpoch)
+        if (stats) {
+          newStats.set(game.id, stats)
+        }
+      }
+
+      setGameStats(newStats)
+      setLoadingGameStats(false)
+    }
+
+    fetchStats()
+  }, [showGameLibrary, currentEpoch])
 
   const handleDisconnect = async () => {
     await disconnectWallet()
@@ -951,28 +981,36 @@ export function AccountPage() {
           <div className="p-6">
             <h3 className="text-terminal-fg text-lg mb-4 tracking-wider">GAME LIBRARY</h3>
             <div className="space-y-3">
-              {MOCK_GAMES.map((game) => (
-                <div
-                  key={game.id}
-                  className="border border-terminal-dim p-4 flex items-center justify-between"
-                >
-                  <div>
-                    <span className="text-terminal-fg text-sm">{game.name}</span>
-                    {game.players > 0 && (
-                      <span className="text-terminal-dim text-xs ml-2">
-                        {game.players} PLAYERS
-                      </span>
-                    )}
-                  </div>
-                  <span
-                    className={`text-xs ${
-                      game.status === 'LIVE' ? 'text-green-400' : 'text-terminal-dim'
-                    }`}
+              {GAMES.map((game) => {
+                const stats = gameStats.get(game.id)
+                return (
+                  <a
+                    key={game.id}
+                    href={game.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="border border-terminal-dim p-4 block cursor-pointer hover:bg-terminal-fg/5 hover:border-terminal-fg transition-colors"
                   >
-                    {game.status}
-                  </span>
-                </div>
-              ))}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-terminal-fg text-sm font-bold">{game.name}</span>
+                      <span className="text-green-400 text-xs">LIVE</span>
+                    </div>
+                    <p className="text-terminal-dim text-xs mb-2">{game.description}</p>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-terminal-dim">EPOCH {currentEpoch} FP:</span>
+                      {loadingGameStats ? (
+                        <span className="text-terminal-dim animate-pulse">LOADING...</span>
+                      ) : stats ? (
+                        <span className="text-terminal-fg font-mono">
+                          {formatUSDC(stats.totalFpContributed, 0)}
+                        </span>
+                      ) : (
+                        <span className="text-terminal-dim">--</span>
+                      )}
+                    </div>
+                  </a>
+                )
+              })}
             </div>
             <button
               onClick={() => setShowGameLibrary(false)}
