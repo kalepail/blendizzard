@@ -7,10 +7,22 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      buffer: 'buffer/',
     },
+    // Ensure these packages are always resolved from frontend's node_modules
+    dedupe: ['@stellar/stellar-sdk', 'buffer'],
   },
   define: {
     global: 'globalThis',
+  },
+  optimizeDeps: {
+    include: ['buffer', '@stellar/stellar-sdk'],
+  },
+  build: {
+    outDir: 'dist',
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
   },
   server: {
     port: 5174,
