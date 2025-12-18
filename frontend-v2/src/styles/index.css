@@ -6,6 +6,26 @@
     @apply border-terminal-dim;
   }
 
+  /* Hide Turnstile widget container - it uses interaction-only mode
+     so it only appears when needed, but the container still takes up
+     layout space. Position it fixed to remove from document flow. */
+  .cf-turnstile {
+    position: fixed !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Turnstile iframe (challenge widget) positions itself when needed */
+  .cf-turnstile iframe {
+    position: fixed !important;
+    bottom: 16px !important;
+    right: 16px !important;
+    z-index: 99999 !important;
+  }
+
   html {
     @apply text-terminal-fg;
     font-family: 'IBM Plex Mono', monospace;
