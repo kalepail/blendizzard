@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { xdr, Address } from '@stellar/stellar-sdk'
 import { useWalletStore } from '@/stores/walletStore'
 import { Radio } from '@/components/ui'
 import {
@@ -798,7 +799,6 @@ export function SignerPage() {
         }
       }
 
-      const { xdr, Address } = await import('@stellar/stellar-sdk')
       type XdrOperation = ReturnType<typeof xdr.Operation.read>
       type XdrAuthEntry = ReturnType<typeof xdr.SorobanAuthorizationEntry.read>
 

@@ -23,5 +23,14 @@ export default defineConfig({
     commonjsOptions: {
       transformMixedEsModules: true,
     },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'stellar-sdk': ['@stellar/stellar-sdk'],
+          'vendor': ['react', 'react-dom', 'zustand'],
+          'smart-account': ['smart-account-kit', 'smart-account-kit-bindings'],
+        },
+      },
+    },
   },
 })

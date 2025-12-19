@@ -21,7 +21,7 @@ import {
   type Player,
   type OhlossConfig,
 } from '@/lib/stellar'
-import { xdr, scValToNative } from '@stellar/stellar-sdk'
+import { xdr, scValToNative, Address } from '@stellar/stellar-sdk'
 
 // =============================================================================
 // Types
@@ -207,7 +207,7 @@ export const useOhlossStore = create<OhlossState>()(
           // Fetch instance data which contains CurrentEpoch and Config
           const instanceKey = xdr.LedgerKey.contractData(
             new xdr.LedgerKeyContractData({
-              contract: new (await import('@stellar/stellar-sdk')).Address(contractId).toScAddress(),
+              contract: new Address(contractId).toScAddress(),
               key: xdr.ScVal.scvLedgerKeyContractInstance(),
               durability: xdr.ContractDataDurability.persistent(),
             })
@@ -618,7 +618,7 @@ export const useOhlossStore = create<OhlossState>()(
           // First, check if the epoch has changed by reading from contract instance
           const instanceKey = xdr.LedgerKey.contractData(
             new xdr.LedgerKeyContractData({
-              contract: new (await import('@stellar/stellar-sdk')).Address(contractId).toScAddress(),
+              contract: new Address(contractId).toScAddress(),
               key: xdr.ScVal.scvLedgerKeyContractInstance(),
               durability: xdr.ContractDataDurability.persistent(),
             })
